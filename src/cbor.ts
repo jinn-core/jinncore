@@ -221,7 +221,14 @@ function readValue(r: Reader): WireValue {
           throw new WireDecodeError("map keys not in canonical order");
         }
         prevKeyBytes = keyBytes;
-        map[key] = readValue(r);
+        // defineProperty, not assignment: a hostile "__proto__" key must
+        // become an ordinary own entry, never touch the prototype chain.
+        Object.defineProperty(map, key, {
+          value: readValue(r),
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
       }
       return map;
     }

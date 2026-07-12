@@ -141,3 +141,14 @@ describe("strict decode", () => {
     expect(toHex(encode(decode(fromHex(canonical))))).toBe(canonical);
   });
 });
+
+describe("prototype safety", () => {
+  it('treats a hostile "__proto__" key as an ordinary entry', () => {
+    // {"__proto__": {"polluted": 1}}
+    const bytes = encode({ ["__proto__"]: { polluted: 1 } } as unknown as WireValue);
+    const value = decode(bytes) as { [key: string]: WireValue };
+    expect(Object.getPrototypeOf(value)).toBe(Object.prototype);
+    expect(({} as { polluted?: unknown }).polluted).toBeUndefined();
+    expect(Object.getOwnPropertyDescriptor(value, "__proto__")?.value).toEqual({ polluted: 1 });
+  });
+});

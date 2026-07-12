@@ -26,9 +26,10 @@ message, or QR code; how it arrived is not this artifact's business.
 
 ## Status
 
-Version 0.0.x: the spec skeleton and the canonical serialization layer are
-in place; envelope and attestation grammar land next, with the code. Nothing
-here is stable yet.
+Version 0.0.x: canonical serialization, identity, and the envelope are
+normative and implemented (sign, verify, audience gate, replay window);
+the attestation grammar lands next, with the code. Nothing here is stable
+yet.
 
 ## Vocabulary
 

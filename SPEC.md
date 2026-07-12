@@ -1,6 +1,6 @@
 # The Jinn Wire Grammar
 
-**Version 0.0.1 (unstable).** This document fixes the bytes of the Jinn
+**Version 0.0.2 (unstable).** This document fixes the bytes of the Jinn
 protocol: how wire objects are serialized, what a signature covers, and what
 a verifier must reject. It is the artifact the paper defers to for
 canonicalization, "a wire-grammar obligation" (paper, section 4.3). The
@@ -80,23 +80,59 @@ canonical encoding of that object, exactly as transmitted. There is no
 transformation, hashing convention, or domain separation beyond what the
 object's own fields carry; what travels is what was signed.
 
-## 4. Identity — partially normative
+## 4. Identity — **normative**
 
-A genie's name is an **Ed25519 public key** (RFC 8032), carried as its
-32-byte encoding in a CBOR byte string. Signatures are 64-byte Ed25519
-signatures, likewise carried as byte strings. **Normative** as far as it
-goes; hash self-description (`hash(S)` for sigils) and any succession
-convention are **provisional** and deferred.
+A genie's name is an **Ed25519 public key** (RFC 8032), minted by the
+genie itself and carried as its 32-byte encoding in a CBOR byte string.
+Signatures are 64-byte Ed25519 signatures, likewise carried as byte
+strings. Nothing else about a genie is a wire fact: where the secret half
+sleeps is custody, below the waist. Hash self-description (`hash(S)` for
+sigils) and any succession convention remain **provisional** and deferred.
 
-## 5. Envelope — **provisional**
+## 5. Envelope — **normative**
 
-The envelope is the only object the protocol puts on a wire. Its intended
-shape, following the paper's section 4.2: a map with keys `from` (sender
-key), `aud` (optional audience commitment), `presents` (attestations the
-sender chooses to present), `fresh` (freshness marker), `payload` (opaque
-byte string), and `sig` (signature over the canonical encoding of the
-envelope with the `sig` entry absent). Field names, the freshness marker's
-form, and the audience commitment's form are not yet fixed.
+The envelope is the only object the protocol puts on a wire: a map with
+exactly these entries and no others.
+
+| key | type | presence | meaning |
+|---|---|---|---|
+| `v` | integer | required | wire grammar version; this document is version `0` |
+| `from` | 32-byte byte string | required | the sender's public key |
+| `aud` | 32-byte byte string | optional | audience commitment; absent means public by construction |
+| `fresh` | map `{t, n}` | required | freshness marker |
+| `payload` | byte string | required | opaque payload; meaning is convention between genies, never protocol law |
+| `sig` | 64-byte byte string | required | Ed25519 signature |
+
+The freshness marker `fresh` is a map with exactly two entries: `t`, the
+sender's claimed time as a non-negative integer count of seconds, and
+`n`, a per-envelope nonce of 8 to 32 bytes (16 random bytes recommended).
+`t` is a claim judged against each verifier's own clock; there is no
+protocol clock.
+
+**Sealing.** `sig` is the Ed25519 signature over the canonical encoding
+(section 3) of the envelope map with the `sig` entry absent. The envelope
+then travels as the canonical encoding of the full map. The signature
+covers every field, so audience, freshness, and presented standing are
+tamper-evident, not just the payload.
+
+**Verification.** A verifier MUST reject an envelope unless all of the
+following hold: the bytes are canonical (section 3.3); the map has exactly
+the shape above, unknown keys included in the rejection; `v` is a version
+the verifier implements; and `sig` verifies against `from` over the
+re-encoded body. A verifier that enforces an audience MUST reject a
+directed envelope whose `aud` is not its own key; any payload whose safe
+handling assumes directed delivery must bind an audience, or the bytes
+are replayable to parties the sender never addressed. Freshness is law
+with a sovereign dial: each verifier MUST enforce a freshness policy on
+its own bounded state, rejecting markers it has already seen and markers
+outside a tolerance it alone chooses; the pair `(t, n)` makes this
+possible with memory bounded by the tolerance window, since everything
+older is rejected on `t` alone and only markers inside the window need
+remembering.
+
+**Reserved.** The key `presents` (attestations the sender chooses to
+present) is reserved: version-0 envelopes MUST NOT include it until the
+attestation grammar (section 6) lands, which will bump the version.
 
 ## 6. Attestation — **provisional**
 
