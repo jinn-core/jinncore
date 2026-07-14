@@ -9,7 +9,7 @@ const me = await createGenie();
 
 // Out-of-band bootstrap: first contact trusts the channel once. A name
 // in hex works anywhere a key is expected.
-const courierName = (await (await fetch(`/name`)).text()).trim();
+const courierName = (await (await fetch(`${BASE}/name`)).text()).trim();
 
 const letter = await me.seal({ to: courierName, payload: message });
 const response = await fetch(`${BASE}/inbox`, { method: "POST", body: letter });
