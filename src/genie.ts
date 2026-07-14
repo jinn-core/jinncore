@@ -16,10 +16,11 @@
  * const envelope = await bob.open(letter); // verified, or it throws
  */
 
-import { equalBytes, toHex } from "./bytes.js";
+import { equalBytes, fromHex, toHex } from "./bytes.js";
 import { JinncoreError } from "./errors.js";
 import { generateKeypair, publicKeyOf } from "./identity.js";
 import {
+  EnvelopeError,
   FreshnessWindow,
   sealEnvelope,
   verifyEnvelope,
@@ -38,10 +39,14 @@ import {
   type Testimony,
 } from "./attestation.js";
 
-/** Anywhere a key is expected, a Genie (or anything with a name) works too. */
-export type KeyLike = Uint8Array | { name: Uint8Array };
+/**
+ * Anywhere a key is expected: raw bytes, a hex string, or a Genie (or
+ * anything else with a name) all work.
+ */
+export type KeyLike = Uint8Array | string | { name: Uint8Array };
 
-const keyOf = (k: KeyLike): Uint8Array => (k instanceof Uint8Array ? k : k.name);
+const keyOf = (k: KeyLike): Uint8Array =>
+  k instanceof Uint8Array ? k : typeof k === "string" ? fromHex(k) : k.name;
 
 const utf8 = new TextEncoder();
 const toBytes = (p: string | Uint8Array): Uint8Array =>
@@ -72,6 +77,8 @@ export interface GenieSealOptions {
 }
 
 export interface GenieOpenOptions {
+  /** Reject envelopes not sent by this key. */
+  from?: KeyLike;
   /** Reject public envelopes outright. */
   requireAudience?: boolean;
   /**
@@ -136,9 +143,13 @@ export class Genie {
 
   /**
    * Open an envelope: verify signature, that it is addressed to me (when
-   * directed), freshness against my own replay window, and the validity
-   * of everything presented. Throws on any failure; what it returns, you
-   * may trust to be real. Whether it is *sufficient* is your judgment.
+   * directed), the expected sender (when given), freshness against my own
+   * replay window, and the validity of everything presented. Throws on
+   * any failure; what it returns, you may trust to be real. Whether it is
+   * *sufficient* is your judgment.
+   *
+   * @example
+   * const envelope = await me.open(bytes, { from: courierName });
    */
   async open(bytes: Uint8Array, options: GenieOpenOptions = {}): Promise<Envelope> {
     const envelope = await verifyEnvelope(bytes, {
@@ -147,6 +158,9 @@ export class Genie {
       ...(options.requireAudience !== undefined && { requireAudience: options.requireAudience }),
       ...(options.now !== undefined && { now: options.now }),
     });
+    if (options.from !== undefined && !equalBytes(envelope.from, keyOf(options.from))) {
+      throw new EnvelopeError("envelope from an unexpected sender");
+    }
     if (options.verifyPresents !== false && envelope.presents) {
       for (const att of envelope.presents) {
         await verifyAttestation(att, options.now !== undefined ? { now: options.now } : {});

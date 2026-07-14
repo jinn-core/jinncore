@@ -29,6 +29,17 @@ export function toHex(bytes: Uint8Array): string {
 }
 
 /**
+ * A key abbreviated for logs and eyes: "a1b2c3d4…". Display only; never
+ * compare short forms.
+ *
+ * @example
+ * console.log(`from ${shortHex(envelope.from)}`);
+ */
+export function shortHex(bytes: Uint8Array, chars = 8): string {
+  return toHex(bytes).slice(0, chars) + "…";
+}
+
+/**
  * @example
  * const key = fromHex("a1b2c3…"); // Uint8Array
  */

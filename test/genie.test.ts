@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { shortHex } from "../src/bytes.js";
 import { createGenie, createJinn, type Genie, type Jinn } from "../src/index.js";
 import { EnvelopeError } from "../src/envelope.js";
 import { AttestationError, type Membership } from "../src/attestation.js";
@@ -171,5 +172,24 @@ describe("errors", () => {
     expect(errors).toHaveLength(3);
     for (const e of errors) expect(e).toBeInstanceOf(JinncoreError);
     expect(errors[0]).toBeInstanceOf(EnvelopeError);
+  });
+});
+
+describe("names as strings", () => {
+  it("hex strings work anywhere a key is expected", async () => {
+    const letter = await alice.seal({ to: bob.hex, payload: "by name" });
+    const envelope = await bob.open(letter, { from: alice.hex });
+    expect(envelope.from).toEqual(alice.name);
+  });
+
+  it("open({ from }) rejects an unexpected sender", async () => {
+    const letter = await carol.seal({ to: bob, payload: "impostor?" });
+    await expect(bob.open(letter, { from: alice })).rejects.toThrow("unexpected sender");
+  });
+});
+
+describe("shortHex", () => {
+  it("abbreviates for display", () => {
+    expect(shortHex(alice.name)).toBe(alice.hex.slice(0, 8) + "…");
   });
 });

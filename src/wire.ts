@@ -34,7 +34,7 @@ export {
 export type { Envelope, Fresh, SealOptions, VerifyOptions } from "./envelope.js";
 
 export { sha256 } from "./digest.js";
-export { compareBytes, equalBytes, toHex, fromHex } from "./bytes.js";
+export { compareBytes, equalBytes, toHex, fromHex, shortHex } from "./bytes.js";
 
 export {
   issueCapability,
