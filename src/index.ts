@@ -1,8 +1,19 @@
-export { encode, decode, WireEncodeError, WireDecodeError } from "./cbor.js";
+/**
+ * jinncore — the Jinn protocol core.
+ *
+ * This module is the primitives layer (also importable as
+ * "jinncore/wire"): canonical bytes, identity, envelopes, attestations.
+ * The friendlier high-level layer will live at the package root when it
+ * lands; the primitives stay importable from "jinncore/wire" permanently.
+ */
+
+export { JinncoreError } from "./errors.js";
+
+export { encodeWire, decodeWire, WireEncodeError, WireDecodeError } from "./cbor.js";
 export type { WireValue } from "./cbor.js";
 
 export {
-  mintKeypair,
+  generateKeypair,
   publicKeyOf,
   sign,
   verifySignature,
@@ -13,8 +24,8 @@ export {
 export type { Keypair } from "./identity.js";
 
 export {
-  seal,
-  verify,
+  sealEnvelope,
+  verifyEnvelope,
   FreshnessWindow,
   EnvelopeError,
   WIRE_VERSION,
@@ -25,7 +36,7 @@ export {
 export type { Envelope, Fresh, SealOptions, VerifyOptions } from "./envelope.js";
 
 export { sha256 } from "./digest.js";
-export { compareBytes, equalBytes, toHex } from "./bytes.js";
+export { compareBytes, equalBytes, toHex, fromHex } from "./bytes.js";
 
 export {
   issueCapability,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decode, encode, WireDecodeError, WireEncodeError, type WireValue } from "../src/cbor.js";
+import { decodeWire, encodeWire, WireDecodeError, WireEncodeError, type WireValue } from "../src/cbor.js";
 
 function fromHex(hex: string): Uint8Array {
   const clean = hex.replaceAll(" ", "");
@@ -54,24 +54,24 @@ describe("encode", () => {
 
   for (const [value, hex] of rfcExamples) {
     it(`encodes ${JSON.stringify(value, (_, v) => (typeof v === "bigint" ? v.toString() : v instanceof Uint8Array ? toHex(v) : v))} as ${hex}`, () => {
-      expect(toHex(encode(value))).toBe(hex);
+      expect(toHex(encodeWire(value))).toBe(hex);
     });
   }
 
   it("sorts map keys bytewise regardless of insertion order", () => {
-    expect(toHex(encode({ b: 2, a: 1 }))).toBe("a2616101616202");
+    expect(toHex(encodeWire({ b: 2, a: 1 }))).toBe("a2616101616202");
     // Shorter key encodes lower than a longer key sharing its prefix.
-    expect(toHex(encode({ aa: 2, a: 1 }))).toBe("a261610162616102");
+    expect(toHex(encodeWire({ aa: 2, a: 1 }))).toBe("a261610162616102");
   });
 
   it("rejects values outside the subset", () => {
-    expect(() => encode(1.5)).toThrow(WireEncodeError);
-    expect(() => encode(NaN)).toThrow(WireEncodeError);
-    expect(() => encode(1n << 64n)).toThrow(WireEncodeError);
-    expect(() => encode(-(1n << 64n) - 1n)).toThrow(WireEncodeError);
-    expect(() => encode(undefined as unknown as WireValue)).toThrow(WireEncodeError);
-    expect(() => encode(new Date() as unknown as WireValue)).toThrow(WireEncodeError);
-    expect(() => encode(new Map() as unknown as WireValue)).toThrow(WireEncodeError);
+    expect(() => encodeWire(1.5)).toThrow(WireEncodeError);
+    expect(() => encodeWire(NaN)).toThrow(WireEncodeError);
+    expect(() => encodeWire(1n << 64n)).toThrow(WireEncodeError);
+    expect(() => encodeWire(-(1n << 64n) - 1n)).toThrow(WireEncodeError);
+    expect(() => encodeWire(undefined as unknown as WireValue)).toThrow(WireEncodeError);
+    expect(() => encodeWire(new Date() as unknown as WireValue)).toThrow(WireEncodeError);
+    expect(() => encodeWire(new Map() as unknown as WireValue)).toThrow(WireEncodeError);
   });
 });
 
@@ -96,8 +96,8 @@ describe("strict decode", () => {
       null,
     ];
     for (const value of values) {
-      const bytes = encode(value);
-      expect(encode(decode(bytes))).toEqual(bytes);
+      const bytes = encodeWire(value);
+      expect(encodeWire(decodeWire(bytes))).toEqual(bytes);
     }
   });
 
@@ -132,21 +132,21 @@ describe("strict decode", () => {
 
   for (const [hex, label] of rejections) {
     it(`rejects ${label} (${hex || "<empty>"})`, () => {
-      expect(() => decode(fromHex(hex))).toThrow(WireDecodeError);
+      expect(() => decodeWire(fromHex(hex))).toThrow(WireDecodeError);
     });
   }
 
   it("accepts exactly the canonical encoding of a map", () => {
     const canonical = "a26161016162820203";
-    expect(toHex(encode(decode(fromHex(canonical))))).toBe(canonical);
+    expect(toHex(encodeWire(decodeWire(fromHex(canonical))))).toBe(canonical);
   });
 });
 
 describe("prototype safety", () => {
   it('treats a hostile "__proto__" key as an ordinary entry', () => {
     // {"__proto__": {"polluted": 1}}
-    const bytes = encode({ ["__proto__"]: { polluted: 1 } } as unknown as WireValue);
-    const value = decode(bytes) as { [key: string]: WireValue };
+    const bytes = encodeWire({ ["__proto__"]: { polluted: 1 } } as unknown as WireValue);
+    const value = decodeWire(bytes) as { [key: string]: WireValue };
     expect(Object.getPrototypeOf(value)).toBe(Object.prototype);
     expect(({} as { polluted?: unknown }).polluted).toBeUndefined();
     expect(Object.getOwnPropertyDescriptor(value, "__proto__")?.value).toEqual({ polluted: 1 });

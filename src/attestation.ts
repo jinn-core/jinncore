@@ -1,19 +1,21 @@
 /**
  * Attestation (SPEC.md §6): the protocol's single instrument of standing.
  *
- * Three species, one frame: a signed, expiring statement by `iss` about
- * `sub`. Membership alone is a matched pair: the jinn signs the statement's
- * canonical bytes, the member countersigns their SHA-256 digest, so the
- * halves cannot be re-paired and neither half is forgeable alone.
+ * Three species, one frame: a signed, expiring statement by `issuer` about
+ * `subject`. Membership alone is a matched pair: the jinn signs the
+ * statement's canonical bytes, the member countersigns their SHA-256
+ * digest, so the halves cannot be re-paired and neither half is forgeable
+ * alone.
  *
  * This module verifies validity (signatures, expiry, chain attenuation),
  * never sufficiency: whether a valid attestation should convince anyone is
  * the counterparty gate's own judgment, above the waist.
  */
 
-import { encode, type WireValue } from "./cbor.js";
+import { encodeWire, type WireValue } from "./cbor.js";
 import { compareBytes, equalBytes } from "./bytes.js";
 import { sha256 } from "./digest.js";
+import { JinncoreError } from "./errors.js";
 import { isBytes, isPlainMap, isUint, requireKeys } from "./shape.js";
 import {
   PUBLIC_KEY_LENGTH,
@@ -23,15 +25,15 @@ import {
   verifySignature,
 } from "./identity.js";
 
-export class AttestationError extends Error {}
+export class AttestationError extends JinncoreError {}
 
 export type AttestationKind = "capability" | "testimony" | "membership";
 
 /** A grant: you may ask this of me, in this scope, until this time. */
 export interface Capability {
   kind: "capability";
-  iss: Uint8Array;
-  sub: Uint8Array;
+  issuer: Uint8Array;
+  subject: Uint8Array;
   exp: number;
   /** Uninterpreted strings; strictly ascending, unique, non-empty. */
   scope: string[];
@@ -43,8 +45,8 @@ export interface Capability {
 /** Signed experience: I dealt with this key, and this is what happened. */
 export interface Testimony {
   kind: "testimony";
-  iss: Uint8Array;
-  sub: Uint8Array;
+  issuer: Uint8Array;
+  subject: Uint8Array;
   exp: number;
   /** Opaque; meaning is convention between genies, never protocol law. */
   body: Uint8Array;
@@ -54,8 +56,8 @@ export interface Testimony {
 /** A membership grant awaiting the member's countersignature. */
 export interface MembershipOffer {
   kind: "membership";
-  iss: Uint8Array;
-  sub: Uint8Array;
+  issuer: Uint8Array;
+  subject: Uint8Array;
   exp: number;
   role: string;
   epoch: number;
@@ -64,7 +66,7 @@ export interface MembershipOffer {
 
 /** The matched pair: only this proves belonging. */
 export interface Membership extends MembershipOffer {
-  /** By `sub`, over SHA-256 of the statement's canonical bytes. */
+  /** By `subject`, over SHA-256 of the statement's canonical bytes. */
   memberSig: Uint8Array;
 }
 
@@ -83,8 +85,8 @@ type Statement =
 function statementBytes(att: Statement): Uint8Array {
   const stmt: { [key: string]: WireValue } = {
     kind: att.kind,
-    iss: att.iss,
-    sub: att.sub,
+    issuer: att.issuer,
+    subject: att.subject,
     exp: att.exp,
   };
   if (att.kind === "capability") {
@@ -96,7 +98,7 @@ function statementBytes(att: Statement): Uint8Array {
     stmt.role = att.role;
     stmt.epoch = att.epoch;
   }
-  return encode(stmt);
+  return encodeWire(stmt);
 }
 
 // --- field validation ---------------------------------------------------
@@ -146,24 +148,37 @@ function assertRole(role: unknown): asserts role is string {
 export interface IssueCapabilityOptions {
   secretKey: Uint8Array;
   /** Issuer's public key; derived from secretKey when omitted. */
-  iss?: Uint8Array;
-  sub: Uint8Array;
+  issuer?: Uint8Array;
+  subject: Uint8Array;
   exp: number;
   scope: string[];
   hops: number;
 }
 
+/**
+ * Grant a capability: subject may ask this of the issuer, in this scope,
+ * until this time, delegable `hops` more times.
+ *
+ * @example
+ * const cap = await issueCapability({
+ *   secretKey: me.secretKey,
+ *   subject: friend.publicKey,
+ *   scope: ["orders/read"],
+ *   exp: now + 3600,
+ *   hops: 0,
+ * });
+ */
 export async function issueCapability(options: IssueCapabilityOptions): Promise<Capability> {
-  const iss = options.iss ?? (await publicKeyOf(options.secretKey));
-  assertKey(iss, "iss");
-  assertKey(options.sub, "sub");
+  const issuer = options.issuer ?? (await publicKeyOf(options.secretKey));
+  assertKey(issuer, "issuer");
+  assertKey(options.subject, "subject");
   assertUint(options.exp, "exp");
   assertUint(options.hops, "hops");
   assertScope(options.scope);
   const stmt: Omit<Capability, "sig"> = {
     kind: "capability",
-    iss,
-    sub: options.sub,
+    issuer,
+    subject: options.subject,
     exp: options.exp,
     scope: [...options.scope],
     hops: options.hops,
@@ -174,24 +189,28 @@ export async function issueCapability(options: IssueCapabilityOptions): Promise<
 
 export interface IssueTestimonyOptions {
   secretKey: Uint8Array;
-  iss?: Uint8Array;
-  sub: Uint8Array;
+  issuer?: Uint8Array;
+  subject: Uint8Array;
   exp: number;
   body: Uint8Array;
 }
 
+/**
+ * Put your signature behind experience: I dealt with this key, and this
+ * is what happened. The body is opaque to the protocol.
+ */
 export async function issueTestimony(options: IssueTestimonyOptions): Promise<Testimony> {
-  const iss = options.iss ?? (await publicKeyOf(options.secretKey));
-  assertKey(iss, "iss");
-  assertKey(options.sub, "sub");
+  const issuer = options.issuer ?? (await publicKeyOf(options.secretKey));
+  assertKey(issuer, "issuer");
+  assertKey(options.subject, "subject");
   assertUint(options.exp, "exp");
   if (!(options.body instanceof Uint8Array)) {
     throw new AttestationError("body must be a byte string");
   }
   const stmt: Omit<Testimony, "sig"> = {
     kind: "testimony",
-    iss,
-    sub: options.sub,
+    issuer,
+    subject: options.subject,
     exp: options.exp,
     body: options.body,
   };
@@ -203,26 +222,40 @@ export interface GrantMembershipOptions {
   /** The jinn's secret key. */
   secretKey: Uint8Array;
   /** The jinn's public key; derived from secretKey when omitted. */
-  iss?: Uint8Array;
+  issuer?: Uint8Array;
   /** The member being admitted. */
-  sub: Uint8Array;
+  subject: Uint8Array;
   role: string;
   epoch: number;
   exp: number;
 }
 
-/** The jinn's half: signs the statement. Proves nothing alone. */
+/**
+ * The jinn's half of the membership pair: signs the statement "this key
+ * is ours, in this role, for this epoch, until this expiry". Proves
+ * nothing alone; the member must accept (countersign) it.
+ *
+ * @example
+ * const offer = await grantMembership({
+ *   secretKey: jinn.secretKey,
+ *   subject: member.publicKey,
+ *   role: "scribe",
+ *   epoch: 1,
+ *   exp: now + 30 * 86400,
+ * });
+ * const membership = await acceptMembership(offer, member.secretKey);
+ */
 export async function grantMembership(options: GrantMembershipOptions): Promise<MembershipOffer> {
-  const iss = options.iss ?? (await publicKeyOf(options.secretKey));
-  assertKey(iss, "iss");
-  assertKey(options.sub, "sub");
+  const issuer = options.issuer ?? (await publicKeyOf(options.secretKey));
+  assertKey(issuer, "issuer");
+  assertKey(options.subject, "subject");
   assertUint(options.exp, "exp");
   assertUint(options.epoch, "epoch");
   assertRole(options.role);
   const stmt: Omit<MembershipOffer, "sig"> = {
     kind: "membership",
-    iss,
-    sub: options.sub,
+    issuer,
+    subject: options.subject,
     exp: options.exp,
     role: options.role,
     epoch: options.epoch,
@@ -234,18 +267,18 @@ export async function grantMembership(options: GrantMembershipOptions): Promise<
 /**
  * The member's half: countersigns SHA-256 of the exact statement. Refuses
  * to countersign an offer that is not addressed to this key or whose
- * issuer signature does not verify.
+ * issuer signature does not verify: never sign what you did not check.
  */
 export async function acceptMembership(
   offer: MembershipOffer,
   secretKey: Uint8Array,
 ): Promise<Membership> {
   const self = await publicKeyOf(secretKey);
-  if (!equalBytes(offer.sub, self)) {
+  if (!equalBytes(offer.subject, self)) {
     throw new AttestationError("offer is not addressed to this key");
   }
   const stmt = statementBytes(offer);
-  if (!(await verifySignature(offer.sig, stmt, offer.iss))) {
+  if (!(await verifySignature(offer.sig, stmt, offer.issuer))) {
     throw new AttestationError("offer signature does not verify");
   }
   const memberSig = await sign(await sha256(stmt), secretKey);
@@ -254,7 +287,7 @@ export async function acceptMembership(
 
 // --- parsing ------------------------------------------------------------
 
-const COMMON_KEYS = ["kind", "iss", "sub", "exp", "sig"];
+const COMMON_KEYS = ["kind", "issuer", "subject", "exp", "sig"];
 
 /** Shape-check a decoded wire value as an attestation. No crypto. */
 export function parseAttestation(value: WireValue): Attestation {
@@ -263,12 +296,12 @@ export function parseAttestation(value: WireValue): Attestation {
   if (kind !== "capability" && kind !== "testimony" && kind !== "membership") {
     throw new AttestationError(`unknown attestation kind: ${String(kind)}`);
   }
-  if (!isBytes(value.iss, PUBLIC_KEY_LENGTH)) throw new AttestationError("iss must be a 32-byte key");
-  if (!isBytes(value.sub, PUBLIC_KEY_LENGTH)) throw new AttestationError("sub must be a 32-byte key");
+  if (!isBytes(value.issuer, PUBLIC_KEY_LENGTH)) throw new AttestationError("issuer must be a 32-byte key");
+  if (!isBytes(value.subject, PUBLIC_KEY_LENGTH)) throw new AttestationError("subject must be a 32-byte key");
   if (!isUint(value.exp)) throw new AttestationError("exp must be a non-negative integer");
   if (!isBytes(value.sig, SIGNATURE_LENGTH)) throw new AttestationError("sig must be a 64-byte signature");
 
-  const common = { iss: value.iss, sub: value.sub, exp: value.exp, sig: value.sig };
+  const common = { issuer: value.issuer, subject: value.subject, exp: value.exp, sig: value.sig };
 
   switch (kind) {
     case "capability": {
@@ -311,6 +344,9 @@ export interface VerifyAttestationOptions {
  * Verify one attestation: expiry on the verifier's clock, issuer signature
  * over the statement, and for membership the member's countersignature
  * over the statement's digest. Throws AttestationError on any failure.
+ *
+ * @example
+ * await verifyAttestation(membership); // throws if forged, re-paired, or expired
  */
 export async function verifyAttestation(
   att: Attestation,
@@ -320,14 +356,14 @@ export async function verifyAttestation(
   if (now > att.exp) throw new AttestationError("attestation expired");
 
   const stmt = statementBytes(att);
-  if (!(await verifySignature(att.sig, stmt, att.iss))) {
+  if (!(await verifySignature(att.sig, stmt, att.issuer))) {
     throw new AttestationError("issuer signature does not verify");
   }
   if (att.kind === "membership") {
     if (!isBytes((att as Membership).memberSig, SIGNATURE_LENGTH)) {
       throw new AttestationError("membership without countersignature proves nothing");
     }
-    if (!(await verifySignature(att.memberSig, await sha256(stmt), att.sub))) {
+    if (!(await verifySignature(att.memberSig, await sha256(stmt), att.subject))) {
       throw new AttestationError("member countersignature does not verify");
     }
   }
@@ -336,9 +372,9 @@ export async function verifyAttestation(
 /** What a valid delegation chain amounts to for its final holder. */
 export interface DelegatedGrant {
   /** The root issuer whose resource this chain draws on. */
-  iss: Uint8Array;
+  issuer: Uint8Array;
   /** The final holder. */
-  sub: Uint8Array;
+  subject: Uint8Array;
   scope: string[];
   exp: number;
   hops: number;
@@ -348,6 +384,10 @@ export interface DelegatedGrant {
  * Verify a delegation chain, root first. Each link must be a valid
  * capability; each delegation must be issued by the previous subject and
  * strictly attenuate: subset scope, no later expiry, strictly fewer hops.
+ *
+ * @example
+ * const grant = await verifyDelegationChain([rootCap, delegatedCap]);
+ * // grant.subject is the final holder; grant.scope is what they may ask
  */
 export async function verifyDelegationChain(
   chain: Capability[],
@@ -365,7 +405,7 @@ export async function verifyDelegationChain(
   for (let i = 1; i < chain.length; i++) {
     const parent = chain[i - 1]!;
     const child = chain[i]!;
-    if (!equalBytes(child.iss, parent.sub)) {
+    if (!equalBytes(child.issuer, parent.subject)) {
       throw new AttestationError("chain link not issued by the previous subject");
     }
     const parentScope = new Set(parent.scope);
@@ -381,8 +421,8 @@ export async function verifyDelegationChain(
   }
   const last = chain[chain.length - 1]!;
   return {
-    iss: chain[0]!.iss,
-    sub: last.sub,
+    issuer: chain[0]!.issuer,
+    subject: last.subject,
     scope: [...last.scope],
     exp: last.exp,
     hops: last.hops,

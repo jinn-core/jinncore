@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { decode, encode, type WireValue } from "../src/cbor.js";
-import { mintKeypair, type Keypair } from "../src/identity.js";
+import { decodeWire, encodeWire, type WireValue } from "../src/cbor.js";
+import { generateKeypair, type Keypair } from "../src/identity.js";
 import {
   acceptMembership,
   AttestationError,
@@ -13,7 +13,7 @@ import {
   type Capability,
   type Membership,
 } from "../src/attestation.js";
-import { seal, verify, EnvelopeError } from "../src/envelope.js";
+import { sealEnvelope, verifyEnvelope, EnvelopeError } from "../src/envelope.js";
 
 let jinn: Keypair; // e.g. Nightmarket
 let scribe: Keypair;
@@ -24,29 +24,29 @@ const NOW = 1_800_000_000;
 const EXP = NOW + 3600;
 
 beforeAll(async () => {
-  jinn = await mintKeypair();
-  scribe = await mintKeypair();
-  helper = await mintKeypair();
-  zar = await mintKeypair();
+  jinn = await generateKeypair();
+  scribe = await generateKeypair();
+  helper = await generateKeypair();
+  zar = await generateKeypair();
 });
 
 describe("capability", () => {
   it("issues and verifies", async () => {
     const cap = await issueCapability({
       secretKey: jinn.secretKey,
-      sub: scribe.publicKey,
+      subject: scribe.publicKey,
       exp: EXP,
       scope: ["orders/place", "orders/read"],
       hops: 1,
     });
     await verifyAttestation(cap, { now: NOW });
-    expect(cap.iss).toEqual(jinn.publicKey);
+    expect(cap.issuer).toEqual(jinn.publicKey);
   });
 
   it("rejects an expired capability on the verifier's clock", async () => {
     const cap = await issueCapability({
       secretKey: jinn.secretKey,
-      sub: scribe.publicKey,
+      subject: scribe.publicKey,
       exp: EXP,
       scope: ["orders/read"],
       hops: 0,
@@ -57,7 +57,7 @@ describe("capability", () => {
   it("rejects a tampered scope (signature fails)", async () => {
     const cap = await issueCapability({
       secretKey: jinn.secretKey,
-      sub: scribe.publicKey,
+      subject: scribe.publicKey,
       exp: EXP,
       scope: ["orders/read"],
       hops: 0,
@@ -69,7 +69,7 @@ describe("capability", () => {
   });
 
   it("enforces scope form: non-empty, sorted, unique", async () => {
-    const base = { secretKey: jinn.secretKey, sub: scribe.publicKey, exp: EXP, hops: 0 };
+    const base = { secretKey: jinn.secretKey, subject: scribe.publicKey, exp: EXP, hops: 0 };
     await expect(issueCapability({ ...base, scope: [] })).rejects.toThrow("non-empty");
     await expect(issueCapability({ ...base, scope: ["b", "a"] })).rejects.toThrow("ascending");
     await expect(issueCapability({ ...base, scope: ["a", "a"] })).rejects.toThrow("ascending");
@@ -81,14 +81,14 @@ describe("delegation chains", () => {
   async function chainOf(childOverrides: Partial<Capability> = {}): Promise<Capability[]> {
     const root = await issueCapability({
       secretKey: jinn.secretKey,
-      sub: scribe.publicKey,
+      subject: scribe.publicKey,
       exp: EXP,
       scope: ["orders/place", "orders/read"],
       hops: 1,
     });
     const child = await issueCapability({
       secretKey: scribe.secretKey,
-      sub: helper.publicKey,
+      subject: helper.publicKey,
       exp: EXP - 600,
       scope: ["orders/read"],
       hops: 0,
@@ -99,8 +99,8 @@ describe("delegation chains", () => {
 
   it("accepts a valid attenuating chain and reports the effective grant", async () => {
     const grant = await verifyDelegationChain(await chainOf(), { now: NOW });
-    expect(grant.iss).toEqual(jinn.publicKey);
-    expect(grant.sub).toEqual(helper.publicKey);
+    expect(grant.issuer).toEqual(jinn.publicKey);
+    expect(grant.subject).toEqual(helper.publicKey);
     expect(grant.scope).toEqual(["orders/read"]);
     expect(grant.hops).toBe(0);
   });
@@ -109,7 +109,7 @@ describe("delegation chains", () => {
     const chain = await chainOf({
       ...(await issueCapability({
         secretKey: scribe.secretKey,
-        sub: helper.publicKey,
+        subject: helper.publicKey,
         exp: EXP - 600,
         scope: ["orders/delete"],
         hops: 0,
@@ -122,7 +122,7 @@ describe("delegation chains", () => {
     const chain = await chainOf(
       await issueCapability({
         secretKey: scribe.secretKey,
-        sub: helper.publicKey,
+        subject: helper.publicKey,
         exp: EXP + 600,
         scope: ["orders/read"],
         hops: 0,
@@ -135,7 +135,7 @@ describe("delegation chains", () => {
     const chain = await chainOf(
       await issueCapability({
         secretKey: scribe.secretKey,
-        sub: helper.publicKey,
+        subject: helper.publicKey,
         exp: EXP - 600,
         scope: ["orders/read"],
         hops: 1,
@@ -148,7 +148,7 @@ describe("delegation chains", () => {
     const [root] = await chainOf();
     const forged = await issueCapability({
       secretKey: zar.secretKey, // not the previous subject
-      sub: helper.publicKey,
+      subject: helper.publicKey,
       exp: EXP - 600,
       scope: ["orders/read"],
       hops: 0,
@@ -168,11 +168,11 @@ describe("testimony", () => {
   it("round-trips through wire bytes", async () => {
     const t = await issueTestimony({
       secretKey: zar.secretKey,
-      sub: scribe.publicKey,
+      subject: scribe.publicKey,
       exp: EXP,
       body: new TextEncoder().encode("delivered on time, twice"),
     });
-    const decoded = parseAttestation(decode(encode(t as unknown as WireValue)));
+    const decoded = parseAttestation(decodeWire(encodeWire(t as unknown as WireValue)));
     await verifyAttestation(decoded, { now: NOW });
     expect(decoded).toEqual(t);
   });
@@ -182,7 +182,7 @@ describe("membership pair", () => {
   async function pair(): Promise<Membership> {
     const offer = await grantMembership({
       secretKey: jinn.secretKey,
-      sub: scribe.publicKey,
+      subject: scribe.publicKey,
       role: "scribe",
       epoch: 1,
       exp: EXP,
@@ -196,11 +196,11 @@ describe("membership pair", () => {
 
   it("cheap lie 1: a stranger cannot forge the jinn's half", async () => {
     // Zar drapes himself in the jinn's name: builds a statement with
-    // iss = jinn but can only sign with his own key.
+    // issuer = jinn but can only sign with his own key.
     const forged = await grantMembership({
       secretKey: zar.secretKey,
-      iss: jinn.publicKey,
-      sub: zar.publicKey,
+      issuer: jinn.publicKey,
+      subject: zar.publicKey,
       role: "scribe",
       epoch: 1,
       exp: EXP,
@@ -213,17 +213,17 @@ describe("membership pair", () => {
   it("cheap lie 2: a jinn cannot claim a member who never countersigned", async () => {
     const offer = await grantMembership({
       secretKey: jinn.secretKey,
-      sub: scribe.publicKey, // the celebrated genie, who never agreed
+      subject: scribe.publicKey, // the celebrated genie, who never agreed
       role: "scribe",
       epoch: 1,
       exp: EXP,
     });
     // The jinn forges a countersignature with a key it controls.
     const fake = await acceptMembership(
-      { ...offer, sub: zar.publicKey },
+      { ...offer, subject: zar.publicKey },
       zar.secretKey,
     ).catch(() => null);
-    expect(fake).toBeNull(); // sub was inside the signed statement: offer sig broke
+    expect(fake).toBeNull(); // subject was inside the signed statement: offer sig broke
 
     // Presenting the bare offer as if it were a pair fails shape checks.
     expect(() => parseAttestation(offer as unknown as WireValue)).toThrow("missing field: memberSig");
@@ -233,7 +233,7 @@ describe("membership pair", () => {
     const scribePair = await pair();
     const treasurerOffer = await grantMembership({
       secretKey: jinn.secretKey,
-      sub: scribe.publicKey,
+      subject: scribe.publicKey,
       role: "treasurer",
       epoch: 1,
       exp: EXP,
@@ -250,7 +250,7 @@ describe("membership pair", () => {
   it("a member refuses to countersign an offer addressed to someone else", async () => {
     const offer = await grantMembership({
       secretKey: jinn.secretKey,
-      sub: scribe.publicKey,
+      subject: scribe.publicKey,
       role: "scribe",
       epoch: 1,
       exp: EXP,
@@ -269,67 +269,67 @@ describe("presents: attestations inside envelopes", () => {
   it("carries a membership pair to a verifier and back out", async () => {
     const offer = await grantMembership({
       secretKey: jinn.secretKey,
-      sub: scribe.publicKey,
+      subject: scribe.publicKey,
       role: "scribe",
       epoch: 1,
       exp: EXP,
     });
     const membership = await acceptMembership(offer, scribe.secretKey);
 
-    const bytes = await seal({
+    const bytes = await sealEnvelope({
       secretKey: scribe.secretKey,
       payload: new Uint8Array([1]),
       aud: zar.publicKey,
       presents: [membership],
-      t: NOW,
+      timestamp: NOW,
     });
-    const envelope = await verify(bytes, { recipient: zar.publicKey });
+    const envelope = await verifyEnvelope(bytes, { recipient: zar.publicKey });
 
     expect(envelope.presents).toHaveLength(1);
     const presented = envelope.presents![0]!;
     expect(presented.kind).toBe("membership");
     // Presenter and subject match: the standing belongs to the sender.
-    expect(envelope.from).toEqual(presented.sub);
+    expect(envelope.from).toEqual(presented.subject);
     await verifyAttestation(presented, { now: NOW });
   });
 
   it("rejects garbage in presents at both ends", async () => {
-    const bad = { kind: "membership", iss: jinn.publicKey } as never;
+    const bad = { kind: "membership", issuer: jinn.publicKey } as never;
     await expect(
-      seal({ secretKey: scribe.secretKey, payload: new Uint8Array(), presents: [bad], t: NOW }),
+      sealEnvelope({ secretKey: scribe.secretKey, payload: new Uint8Array(), presents: [bad], timestamp: NOW }),
     ).rejects.toThrow(EnvelopeError);
 
     // Hand-built envelope bytes with a non-attestation in presents.
-    const sealed = await seal({ secretKey: scribe.secretKey, payload: new Uint8Array(), t: NOW });
-    const map = decode(sealed) as { [key: string]: WireValue };
+    const sealed = await sealEnvelope({ secretKey: scribe.secretKey, payload: new Uint8Array(), timestamp: NOW });
+    const map = decodeWire(sealed) as { [key: string]: WireValue };
     map.presents = [{ kind: "membership" }];
-    await expect(verify(encode(map))).rejects.toThrow("invalid attestation in presents");
+    await expect(verifyEnvelope(encodeWire(map))).rejects.toThrow("invalid attestation in presents");
   });
 
   it("rejects an empty presents array", async () => {
     await expect(
-      seal({ secretKey: scribe.secretKey, payload: new Uint8Array(), presents: [], t: NOW }),
+      sealEnvelope({ secretKey: scribe.secretKey, payload: new Uint8Array(), presents: [], timestamp: NOW }),
     ).rejects.toThrow("non-empty");
   });
 
   it("an envelope's signature covers its presents (tamper breaks it)", async () => {
     const cap = await issueCapability({
       secretKey: jinn.secretKey,
-      sub: scribe.publicKey,
+      subject: scribe.publicKey,
       exp: EXP,
       scope: ["orders/read"],
       hops: 0,
     });
-    const sealed = await seal({
+    const sealed = await sealEnvelope({
       secretKey: scribe.secretKey,
       payload: new Uint8Array(),
       presents: [cap],
-      t: NOW,
+      timestamp: NOW,
     });
-    const map = decode(sealed) as { [key: string]: WireValue };
+    const map = decodeWire(sealed) as { [key: string]: WireValue };
     const presented = (map.presents as WireValue[])[0] as { [key: string]: WireValue };
     presented.exp = EXP + 999;
-    await expect(verify(encode(map))).rejects.toThrow("signature does not verify");
+    await expect(verifyEnvelope(encodeWire(map))).rejects.toThrow("signature does not verify");
   });
 });
 
@@ -339,8 +339,8 @@ describe("parseAttestation strictness", () => {
     expect(() =>
       parseAttestation({
         kind: "testimony",
-        iss: new Uint8Array(32),
-        sub: new Uint8Array(32),
+        issuer: new Uint8Array(32),
+        subject: new Uint8Array(32),
         exp: 1,
         body: new Uint8Array(),
         sig: new Uint8Array(64),

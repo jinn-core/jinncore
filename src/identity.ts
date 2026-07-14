@@ -17,8 +17,15 @@ export interface Keypair {
   secretKey: Uint8Array;
 }
 
-/** Mint a fresh identity. */
-export async function mintKeypair(): Promise<Keypair> {
+/**
+ * Generate a fresh identity. The public key is the name; everything the
+ * protocol can ever say about a participant, it says about this key.
+ *
+ * @example
+ * const me = await generateKeypair();
+ * console.log(toHex(me.publicKey)); // the name
+ */
+export async function generateKeypair(): Promise<Keypair> {
   const secretKey = ed.utils.randomPrivateKey();
   const publicKey = await ed.getPublicKeyAsync(secretKey);
   return { publicKey, secretKey };

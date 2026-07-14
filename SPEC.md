@@ -1,6 +1,6 @@
 # The Jinn Wire Grammar
 
-**Version 0.0.3 (unstable).** This document fixes the bytes of the Jinn
+**Version 0.0.4 (unstable).** This document fixes the bytes of the Jinn
 protocol: how wire objects are serialized, what a signature covers, and what
 a verifier must reject. It is the artifact the paper defers to for
 canonicalization, "a wire-grammar obligation" (paper, section 4.3). The
@@ -154,14 +154,14 @@ a shape error; a sender with nothing to present omits the key.
 
 ## 6. Attestation — **normative**
 
-An attestation is a signed, expiring statement of standing: `iss` puts a
-signature behind a statement about `sub`. Three species, one frame, one
+An attestation is a signed, expiring statement of standing: `issuer` puts a
+signature behind a statement about `subject`. Three species, one frame, one
 verification path.
 
 ### 6.1 The common frame
 
 Every attestation is a map carrying `kind` (text: `"capability"`,
-`"testimony"`, or `"membership"`), `iss` (32-byte key), `sub` (32-byte
+`"testimony"`, or `"membership"`), `issuer` (32-byte key), `subject` (32-byte
 key), `exp` (non-negative integer seconds), its species fields (below),
 and `sig` (64 bytes). The **statement** is the attestation's canonical
 encoding with `sig` (and `memberSig`, where defined) absent; `sig` is the
@@ -173,7 +173,7 @@ verifier's own clock, and an expired attestation proves only what was.
 There is no revocation beyond non-renewal.
 
 A verifier MUST reject an attestation unless: the shape is exact, `exp`
-has not passed on its clock, `sig` verifies against `iss` over the
+has not passed on its clock, `sig` verifies against `issuer` over the
 statement, and, for membership, the countersignature check of section 6.4
 passes. Validity is all the grammar defines; whether a valid attestation
 *suffices* is the receiving gate's judgment, above the waist.
@@ -188,8 +188,8 @@ and grantee.
 
 A **delegation chain** is a sequence of capabilities, root first. A
 verifier MUST reject a chain unless every link verifies alone (6.1) and
-every non-root link, against its parent: is issued by the parent's `sub`
-(`child.iss = parent.sub`), has `scope` a subset of the parent's, has
+every non-root link, against its parent: is issued by the parent's `subject`
+(`child.issuer = parent.subject`), has `scope` a subset of the parent's, has
 `exp` no later than the parent's, and has `hops` strictly less than the
 parent's. Delegation only attenuates; a capability with `hops` 0 is not
 delegable. Subset is set membership over exact strings; the waist knows
@@ -204,10 +204,10 @@ grammar defines no score and no aggregate.
 ### 6.4 Membership
 
 Species fields: `role` (non-empty text), `epoch` (non-negative integer),
-and `memberSig` (64 bytes). `iss` is the jinn, `sub` the member.
+and `memberSig` (64 bytes). `issuer` is the jinn, `subject` the member.
 
 Membership alone is a matched pair. The jinn signs the statement (`sig`,
-per 6.1); the member countersigns it (`memberSig`): a signature by `sub`
+per 6.1); the member countersigns it (`memberSig`): a signature by `subject`
 over the SHA-256 digest of the statement's canonical bytes (section 3.4).
 Verification is three checks: the jinn's signature over the statement,
 the member's signature over the statement's recomputed digest, and the

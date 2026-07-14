@@ -1,14 +1,15 @@
 /**
  * Envelope (SPEC.md §5): the only object the protocol puts on a wire.
  *
- * seal() builds and signs; verify() strict-decodes, checks shape,
- * signature, audience, and freshness. The signature covers the canonical
- * encoding of the envelope with the `sig` entry absent, so what travels
- * is what was signed.
+ * sealEnvelope() builds and signs; verifyEnvelope() strict-decodes, checks
+ * shape, signature, audience, and freshness. The signature covers the
+ * canonical encoding of the envelope with the `sig` entry absent, so what
+ * travels is what was signed.
  */
 
-import { decode, encode, type WireValue } from "./cbor.js";
+import { decodeWire, encodeWire, type WireValue } from "./cbor.js";
 import { equalBytes, toHex } from "./bytes.js";
+import { JinncoreError } from "./errors.js";
 import { isBytes, isPlainMap, requireKeys } from "./shape.js";
 import {
   AttestationError,
@@ -28,7 +29,7 @@ export const NONCE_LENGTH_DEFAULT = 16;
 export const NONCE_LENGTH_MIN = 8;
 export const NONCE_LENGTH_MAX = 32;
 
-export class EnvelopeError extends Error {}
+export class EnvelopeError extends JinncoreError {}
 
 /** The freshness marker: the sender's claimed time and a per-envelope nonce. */
 export interface Fresh {
@@ -36,11 +37,12 @@ export interface Fresh {
   n: Uint8Array;
 }
 
+/** The decoded envelope, field names exactly as they appear in the bytes. */
 export interface Envelope {
   v: number;
   from: Uint8Array;
   aud?: Uint8Array;
-  /** Attestations the sender chooses to present. */
+  /** Attestations the sender chose to present. */
   presents?: Attestation[];
   fresh: Fresh;
   payload: Uint8Array;
@@ -57,7 +59,7 @@ export interface SealOptions {
   /** Attestations to present; omit rather than passing an empty array. */
   presents?: Attestation[];
   /** Sender-claimed seconds; defaults to the sender's own clock. */
-  t?: number;
+  timestamp?: number;
   /** Per-envelope nonce; defaults to NONCE_LENGTH_DEFAULT random bytes. */
   nonce?: Uint8Array;
 }
@@ -76,17 +78,30 @@ function envelopeBody(envelope: Omit<Envelope, "sig">): { [key: string]: WireVal
   return body;
 }
 
-/** Build and sign an envelope; returns the wire bytes. */
-export async function seal(options: SealOptions): Promise<Uint8Array> {
+/**
+ * Build and sign an envelope; returns the wire bytes, ready for any
+ * channel at all: the recipient's position is identical however they
+ * arrive.
+ *
+ * @example
+ * const bytes = await sealEnvelope({
+ *   secretKey: me.secretKey,
+ *   aud: friend.publicKey,
+ *   payload: new TextEncoder().encode("hello"),
+ * });
+ */
+export async function sealEnvelope(options: SealOptions): Promise<Uint8Array> {
   const from = options.from ?? (await publicKeyOf(options.secretKey));
-  const t = options.t ?? Math.floor(Date.now() / 1000);
+  const t = options.timestamp ?? Math.floor(Date.now() / 1000);
   const n = options.nonce ?? globalThis.crypto.getRandomValues(new Uint8Array(NONCE_LENGTH_DEFAULT));
 
   if (from.length !== PUBLIC_KEY_LENGTH) throw new EnvelopeError("from must be a 32-byte key");
   if (options.aud !== undefined && options.aud.length !== PUBLIC_KEY_LENGTH) {
     throw new EnvelopeError("aud must be a 32-byte key");
   }
-  if (!Number.isSafeInteger(t) || t < 0) throw new EnvelopeError("t must be a non-negative integer");
+  if (!Number.isSafeInteger(t) || t < 0) {
+    throw new EnvelopeError("timestamp must be a non-negative integer");
+  }
   if (n.length < NONCE_LENGTH_MIN || n.length > NONCE_LENGTH_MAX) {
     throw new EnvelopeError(`nonce must be ${NONCE_LENGTH_MIN}..${NONCE_LENGTH_MAX} bytes`);
   }
@@ -112,8 +127,8 @@ export async function seal(options: SealOptions): Promise<Uint8Array> {
     ...(options.aud !== undefined && { aud: options.aud }),
     ...(options.presents !== undefined && { presents: options.presents }),
   });
-  const sig = await sign(encode(body), options.secretKey);
-  return encode({ ...body, sig });
+  const sig = await sign(encodeWire(body), options.secretKey);
+  return encodeWire({ ...body, sig });
 }
 
 // --- verification -----------------------------------------------------
@@ -122,7 +137,7 @@ export async function seal(options: SealOptions): Promise<Uint8Array> {
 function parseEnvelope(bytes: Uint8Array): Envelope {
   let value: WireValue;
   try {
-    value = decode(bytes);
+    value = decodeWire(bytes);
   } catch (error) {
     throw new EnvelopeError(`not canonical wire bytes: ${(error as Error).message}`);
   }
@@ -173,7 +188,12 @@ function parseEnvelope(bytes: Uint8Array): Envelope {
 
 /**
  * Bounded replay memory: remembers freshness markers inside the tolerance
- * window, forgets everything older. One instance per verifier.
+ * window, forgets everything older. One instance per verifier; the
+ * tolerance is yours alone to choose.
+ *
+ * @example
+ * const window = new FreshnessWindow(300); // accept up to 5 minutes of skew
+ * await verifyEnvelope(bytes, { window }); // second call with same bytes throws
  */
 export class FreshnessWindow {
   private seen = new Map<string, number>();
@@ -220,12 +240,22 @@ export interface VerifyOptions {
  * imply valid cargo. Which attestations to demand and whether to believe
  * them is the gate's own policy: run verifyAttestation /
  * verifyDelegationChain per that policy.
+ *
+ * @example
+ * const envelope = await verifyEnvelope(bytes, {
+ *   recipient: me.publicKey,
+ *   window: myWindow,
+ * });
+ * console.log(envelope.payload); // safe to read: origin and integrity hold
  */
-export async function verify(bytes: Uint8Array, options: VerifyOptions = {}): Promise<Envelope> {
+export async function verifyEnvelope(
+  bytes: Uint8Array,
+  options: VerifyOptions = {},
+): Promise<Envelope> {
   const envelope = parseEnvelope(bytes);
 
   const body = envelopeBody(envelope);
-  const signatureValid = await verifySignature(envelope.sig, encode(body), envelope.from);
+  const signatureValid = await verifySignature(envelope.sig, encodeWire(body), envelope.from);
   if (!signatureValid) throw new EnvelopeError("signature does not verify");
 
   if (envelope.aud !== undefined) {
@@ -243,4 +273,3 @@ export async function verify(bytes: Uint8Array, options: VerifyOptions = {}): Pr
 
   return envelope;
 }
-

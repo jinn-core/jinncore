@@ -3,12 +3,13 @@
  * subset (SPEC.md §3): 64-bit integers, byte strings, UTF-8 text strings,
  * arrays, maps with text keys, false, true, null.
  *
- * decode() is strict: it accepts exactly the bytes encode() can produce,
- * so every wire value has one encoding and a signature over canonical
- * bytes covers one value.
+ * decodeWire() is strict: it accepts exactly the bytes encodeWire() can
+ * produce, so every wire value has one encoding and a signature over
+ * canonical bytes covers one value.
  */
 
 import { compareBytes } from "./bytes.js";
+import { JinncoreError } from "./errors.js";
 
 export type WireValue =
   | number
@@ -25,8 +26,8 @@ const MAX_U64 = (1n << 64n) - 1n;
 const utf8Encoder = new TextEncoder();
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
 
-export class WireEncodeError extends Error {}
-export class WireDecodeError extends Error {}
+export class WireEncodeError extends JinncoreError {}
+export class WireDecodeError extends JinncoreError {}
 
 // --- encoding ---------------------------------------------------------
 
@@ -103,8 +104,14 @@ function pushValue(out: number[], value: WireValue): void {
   }
 }
 
-/** Encode a wire value as deterministic CBOR. */
-export function encode(value: WireValue): Uint8Array {
+/**
+ * Encode a wire value as deterministic CBOR: the one byte representation
+ * every signature in the protocol is computed over.
+ *
+ * @example
+ * const bytes = encodeWire({ hello: "world", n: 5 });
+ */
+export function encodeWire(value: WireValue): Uint8Array {
   const out: number[] = [];
   pushValue(out, value);
   return Uint8Array.from(out);
@@ -247,8 +254,11 @@ function readValue(r: Reader): WireValue {
 /**
  * Decode deterministic CBOR, rejecting any input that is not the canonical
  * encoding of a value in the wire subset.
+ *
+ * @example
+ * const value = decodeWire(bytes); // throws WireDecodeError on anything non-canonical
  */
-export function decode(bytes: Uint8Array): WireValue {
+export function decodeWire(bytes: Uint8Array): WireValue {
   const r = new Reader(bytes);
   const value = readValue(r);
   if (r.pos !== bytes.length) throw new WireDecodeError("trailing bytes after value");
