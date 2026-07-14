@@ -1,0 +1,290 @@
+{
+  "description": "Canonical serialization (SPEC.md §3). `encode`: the value (in the JSON convention of README.md) must encode to exactly `hex`, and `hex` must decode back to it. `reject`: a strict decoder must refuse these bytes.",
+  "encode": [
+    {
+      "value": 0,
+      "hex": "00"
+    },
+    {
+      "value": 1,
+      "hex": "01"
+    },
+    {
+      "value": 10,
+      "hex": "0a"
+    },
+    {
+      "value": 23,
+      "hex": "17"
+    },
+    {
+      "value": 24,
+      "hex": "1818"
+    },
+    {
+      "value": 25,
+      "hex": "1819"
+    },
+    {
+      "value": 100,
+      "hex": "1864"
+    },
+    {
+      "value": 1000,
+      "hex": "1903e8"
+    },
+    {
+      "value": 1000000,
+      "hex": "1a000f4240"
+    },
+    {
+      "value": 1000000000000,
+      "hex": "1b000000e8d4a51000"
+    },
+    {
+      "value": {
+        "$bigint": "18446744073709551615"
+      },
+      "hex": "1bffffffffffffffff"
+    },
+    {
+      "value": -1,
+      "hex": "20"
+    },
+    {
+      "value": -10,
+      "hex": "29"
+    },
+    {
+      "value": -100,
+      "hex": "3863"
+    },
+    {
+      "value": -1000,
+      "hex": "3903e7"
+    },
+    {
+      "value": {
+        "$bigint": "-18446744073709551616"
+      },
+      "hex": "3bffffffffffffffff"
+    },
+    {
+      "value": false,
+      "hex": "f4"
+    },
+    {
+      "value": true,
+      "hex": "f5"
+    },
+    {
+      "value": null,
+      "hex": "f6"
+    },
+    {
+      "value": "",
+      "hex": "60"
+    },
+    {
+      "value": "a",
+      "hex": "6161"
+    },
+    {
+      "value": "IETF",
+      "hex": "6449455446"
+    },
+    {
+      "value": "\"\\",
+      "hex": "62225c"
+    },
+    {
+      "value": "ü",
+      "hex": "62c3bc"
+    },
+    {
+      "value": "水",
+      "hex": "63e6b0b4"
+    },
+    {
+      "value": {
+        "$hex": ""
+      },
+      "hex": "40"
+    },
+    {
+      "value": {
+        "$hex": "01020304"
+      },
+      "hex": "4401020304"
+    },
+    {
+      "value": [],
+      "hex": "80"
+    },
+    {
+      "value": [
+        1,
+        2,
+        3
+      ],
+      "hex": "83010203"
+    },
+    {
+      "value": [
+        1,
+        [
+          2,
+          3
+        ],
+        [
+          4,
+          5
+        ]
+      ],
+      "hex": "8301820203820405"
+    },
+    {
+      "value": {},
+      "hex": "a0"
+    },
+    {
+      "value": {
+        "a": 1,
+        "b": [
+          2,
+          3
+        ]
+      },
+      "hex": "a26161016162820203"
+    },
+    {
+      "value": [
+        "a",
+        {
+          "b": "c"
+        }
+      ],
+      "hex": "826161a161626163"
+    },
+    {
+      "value": {
+        "b": 2,
+        "a": 1
+      },
+      "hex": "a2616101616202"
+    },
+    {
+      "value": {
+        "aa": 2,
+        "a": 1
+      },
+      "hex": "a261610162616102"
+    }
+  ],
+  "reject": [
+    {
+      "hex": "1817",
+      "reason": "non-shortest one-byte argument"
+    },
+    {
+      "hex": "190001",
+      "reason": "non-shortest two-byte argument"
+    },
+    {
+      "hex": "1a00000001",
+      "reason": "non-shortest four-byte argument"
+    },
+    {
+      "hex": "1b0000000000000001",
+      "reason": "non-shortest eight-byte argument"
+    },
+    {
+      "hex": "5f4101ff",
+      "reason": "indefinite-length byte string"
+    },
+    {
+      "hex": "7f6161ff",
+      "reason": "indefinite-length text string"
+    },
+    {
+      "hex": "9f01ff",
+      "reason": "indefinite-length array"
+    },
+    {
+      "hex": "bf616101ff",
+      "reason": "indefinite-length map"
+    },
+    {
+      "hex": "f90000",
+      "reason": "half-precision float"
+    },
+    {
+      "hex": "fa00000000",
+      "reason": "single-precision float"
+    },
+    {
+      "hex": "fb0000000000000000",
+      "reason": "double-precision float"
+    },
+    {
+      "hex": "f7",
+      "reason": "undefined"
+    },
+    {
+      "hex": "f818",
+      "reason": "unknown simple value"
+    },
+    {
+      "hex": "c074323031332d30332d32315432303a30343a30305a",
+      "reason": "tag"
+    },
+    {
+      "hex": "a2616201616102",
+      "reason": "misordered map keys"
+    },
+    {
+      "hex": "a2616101616102",
+      "reason": "duplicate map keys"
+    },
+    {
+      "hex": "a1016161",
+      "reason": "non-text map key"
+    },
+    {
+      "hex": "6198",
+      "reason": "invalid UTF-8 in text string"
+    },
+    {
+      "hex": "a161ff01",
+      "reason": "invalid UTF-8 in map key"
+    },
+    {
+      "hex": "0000",
+      "reason": "trailing bytes"
+    },
+    {
+      "hex": "18",
+      "reason": "truncated argument"
+    },
+    {
+      "hex": "4401020304ff",
+      "reason": "trailing bytes after byte string"
+    },
+    {
+      "hex": "440102",
+      "reason": "truncated byte string"
+    },
+    {
+      "hex": "8301",
+      "reason": "truncated array"
+    },
+    {
+      "hex": "1c",
+      "reason": "reserved additional information 28"
+    },
+    {
+      "hex": "",
+      "reason": "empty input"
+    }
+  ]
+}

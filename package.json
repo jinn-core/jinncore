@@ -19,7 +19,8 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "vectors": "tsx scripts/generate-vectors.ts"
   },
   "dependencies": {
     "@noble/ed25519": "^2.1.0"
