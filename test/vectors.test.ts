@@ -59,7 +59,7 @@ describe("envelope vectors", () => {
         payload: fromHex(options.payload),
         timestamp: options.timestamp,
         nonce: fromHex(options.nonce),
-        ...(options.aud && { aud: fromHex(options.aud) }),
+        ...(options.aud && { aud: options.aud.map((k: string) => fromHex(k)) }),
         ...(options.presents && {
           presents: options.presents.map((a: unknown) => fromJson(a) as unknown as Attestation),
         }),

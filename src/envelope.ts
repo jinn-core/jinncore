@@ -8,7 +8,7 @@
  */
 
 import { decodeWire, encodeWire, type WireValue } from "./cbor.js";
-import { equalBytes, toHex } from "./bytes.js";
+import { compareBytes, equalBytes, toHex } from "./bytes.js";
 import { JinncoreError } from "./errors.js";
 import { isBytes, isPlainMap, requireKeys } from "./shape.js";
 import {
@@ -41,7 +41,8 @@ export interface Fresh {
 export interface Envelope {
   v: number;
   from: Uint8Array;
-  aud?: Uint8Array;
+  /** The keys this envelope is addressed to, ascending and unique. */
+  aud?: Uint8Array[];
   /** Attestations the sender chose to present. */
   presents?: Attestation[];
   fresh: Fresh;
@@ -54,8 +55,8 @@ export interface SealOptions {
   payload: Uint8Array;
   /** Sender's public key; derived from secretKey when omitted. */
   from?: Uint8Array;
-  /** Audience commitment; absent means public by construction. */
-  aud?: Uint8Array;
+  /** Audience commitment(s); absent means public by construction. */
+  aud?: Uint8Array | Uint8Array[];
   /** Attestations to present; omit rather than passing an empty array. */
   presents?: Attestation[];
   /** Sender-claimed seconds; defaults to the sender's own clock. */
@@ -78,6 +79,26 @@ function envelopeBody(envelope: Omit<Envelope, "sig">): { [key: string]: WireVal
   return body;
 }
 
+/** Normalize a seal-time audience into its one canonical form. */
+function canonicalAudience(aud: Uint8Array | Uint8Array[]): Uint8Array[] {
+  const list = aud instanceof Uint8Array ? [aud] : [...aud];
+  if (list.length === 0) {
+    throw new EnvelopeError("aud must not be empty; omit it for a public envelope");
+  }
+  for (const key of list) {
+    if (!(key instanceof Uint8Array) || key.length !== PUBLIC_KEY_LENGTH) {
+      throw new EnvelopeError("aud entries must be 32-byte keys");
+    }
+  }
+  list.sort(compareBytes);
+  for (let i = 1; i < list.length; i++) {
+    if (compareBytes(list[i - 1]!, list[i]!) === 0) {
+      throw new EnvelopeError("aud entries must be unique");
+    }
+  }
+  return list;
+}
+
 /**
  * Build and sign an envelope; returns the wire bytes, ready for any
  * channel at all: the recipient's position is identical however they
@@ -96,9 +117,7 @@ export async function sealEnvelope(options: SealOptions): Promise<Uint8Array> {
   const n = options.nonce ?? globalThis.crypto.getRandomValues(new Uint8Array(NONCE_LENGTH_DEFAULT));
 
   if (from.length !== PUBLIC_KEY_LENGTH) throw new EnvelopeError("from must be a 32-byte key");
-  if (options.aud !== undefined && options.aud.length !== PUBLIC_KEY_LENGTH) {
-    throw new EnvelopeError("aud must be a 32-byte key");
-  }
+  const aud = options.aud !== undefined ? canonicalAudience(options.aud) : undefined;
   if (!Number.isSafeInteger(t) || t < 0) {
     throw new EnvelopeError("timestamp must be a non-negative integer");
   }
@@ -124,7 +143,7 @@ export async function sealEnvelope(options: SealOptions): Promise<Uint8Array> {
     from,
     fresh: { t, n },
     payload: options.payload,
-    ...(options.aud !== undefined && { aud: options.aud }),
+    ...(aud !== undefined && { aud }),
     ...(options.presents !== undefined && { presents: options.presents }),
   });
   const sig = await sign(encodeWire(body), options.secretKey);
@@ -146,9 +165,6 @@ function parseEnvelope(bytes: Uint8Array): Envelope {
 
   if (value.v !== WIRE_VERSION) throw new EnvelopeError(`unsupported wire version: ${String(value.v)}`);
   if (!isBytes(value.from, PUBLIC_KEY_LENGTH)) throw new EnvelopeError("from must be a 32-byte key");
-  if ("aud" in value && !isBytes(value.aud, PUBLIC_KEY_LENGTH)) {
-    throw new EnvelopeError("aud must be a 32-byte key");
-  }
   if (!isBytes(value.payload)) throw new EnvelopeError("payload must be a byte string");
   if (!isBytes(value.sig, SIGNATURE_LENGTH)) throw new EnvelopeError("sig must be a 64-byte signature");
 
@@ -169,7 +185,23 @@ function parseEnvelope(bytes: Uint8Array): Envelope {
     payload: value.payload,
     sig: value.sig,
   };
-  if ("aud" in value) envelope.aud = value.aud as Uint8Array;
+  if ("aud" in value) {
+    const aud = value.aud;
+    if (!Array.isArray(aud) || aud.length === 0) {
+      throw new EnvelopeError("aud must be a non-empty array of keys");
+    }
+    const list: Uint8Array[] = [];
+    for (const key of aud) {
+      if (!isBytes(key, PUBLIC_KEY_LENGTH)) {
+        throw new EnvelopeError("aud entries must be 32-byte keys");
+      }
+      if (list.length > 0 && compareBytes(list[list.length - 1]!, key) >= 0) {
+        throw new EnvelopeError("aud keys must be strictly ascending and unique");
+      }
+      list.push(key);
+    }
+    envelope.aud = list;
+  }
   if ("presents" in value) {
     if (!Array.isArray(value.presents) || value.presents.length === 0) {
       throw new EnvelopeError("presents must be a non-empty array");
@@ -259,7 +291,10 @@ export async function verifyEnvelope(
   if (!signatureValid) throw new EnvelopeError("signature does not verify");
 
   if (envelope.aud !== undefined) {
-    if (options.recipient !== undefined && !equalBytes(envelope.aud, options.recipient)) {
+    if (
+      options.recipient !== undefined &&
+      !envelope.aud.some((key) => equalBytes(key, options.recipient!))
+    ) {
       throw new EnvelopeError("envelope addressed to a different audience");
     }
   } else if (options.requireAudience) {

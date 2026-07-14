@@ -262,12 +262,12 @@ const envelopeVectors = {
     },
     {
       name: "directed envelope",
-      options: { secretKey: toHex(scribeSecret), aud: toHex(founder), payload: toHex(utf8.encode("who are you?")), timestamp: NOW, nonce: toHex(NONCE) },
+      options: { secretKey: toHex(scribeSecret), aud: [toHex(founder)], payload: toHex(utf8.encode("who are you?")), timestamp: NOW, nonce: toHex(NONCE) },
       bytes: toHex(directedBytes),
     },
     {
       name: "directed envelope presenting a membership pair",
-      options: { secretKey: toHex(scribeSecret), aud: toHex(founder), presents: [att(membership)], payload: toHex(utf8.encode("the jinn sent me")), timestamp: NOW, nonce: toHex(NONCE) },
+      options: { secretKey: toHex(scribeSecret), aud: [toHex(founder)], presents: [att(membership)], payload: toHex(utf8.encode("the jinn sent me")), timestamp: NOW, nonce: toHex(NONCE) },
       bytes: toHex(presentingBytes),
     },
   ],

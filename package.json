@@ -12,8 +12,8 @@
       "import": "./dist/index.js"
     },
     "./wire": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/wire.d.ts",
+      "import": "./dist/wire.js"
     }
   },
   "scripts": {

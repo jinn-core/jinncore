@@ -39,7 +39,7 @@ describe("seal and verify", () => {
   it("round-trips a directed envelope", async () => {
     const envelope = await verifyEnvelope(await sealed(), { recipient: bob.publicKey });
     expect(envelope.from).toEqual(alice.publicKey);
-    expect(envelope.aud).toEqual(bob.publicKey);
+    expect(envelope.aud).toEqual([bob.publicKey]);
     expect(envelope.payload).toEqual(PAYLOAD);
     expect(envelope.fresh).toEqual({ t: NOW, n: NONCE });
   });
@@ -67,7 +67,7 @@ describe("seal and verify", () => {
 describe("tampering", () => {
   const mutations: Array<[string, (envelope: { [key: string]: WireValue }) => void]> = [
     ["payload", (e) => { (e.payload as Uint8Array)[0]! ^= 1; }],
-    ["audience", (e) => { e.aud = carol.publicKey; }],
+    ["audience", (e) => { e.aud = [carol.publicKey]; }],
     ["sender", (e) => { e.from = carol.publicKey; }],
     ["timestamp", (e) => { (e.fresh as { t: number }).t = NOW + 1; }],
     ["nonce", (e) => { ((e.fresh as { n: Uint8Array }).n)[0]! ^= 1; }],

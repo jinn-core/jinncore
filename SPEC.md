@@ -1,6 +1,6 @@
 # The Jinn Wire Grammar
 
-**Version 0.0.4 (unstable).** This document fixes the bytes of the Jinn
+**Version 0.0.5 (unstable).** This document fixes the bytes of the Jinn
 protocol: how wire objects are serialized, what a signature covers, and what
 a verifier must reject. It is the artifact the paper defers to for
 canonicalization, "a wire-grammar obligation" (paper, section 4.3). The
@@ -111,7 +111,7 @@ exactly these entries and no others.
 |---|---|---|---|
 | `v` | integer | required | wire grammar version; this document is version `1` |
 | `from` | 32-byte byte string | required | the sender's public key |
-| `aud` | 32-byte byte string | optional | audience commitment; absent means public by construction |
+| `aud` | non-empty array of 32-byte byte strings | optional | the keys this envelope is addressed to, strictly ascending, unique; absent means public by construction |
 | `presents` | non-empty array of attestations | optional | standing the sender chooses to present (section 6) |
 | `fresh` | map `{t, n}` | required | freshness marker |
 | `payload` | byte string | required | opaque payload; meaning is convention between genies, never protocol law |
@@ -134,7 +134,7 @@ following hold: the bytes are canonical (section 3.3); the map has exactly
 the shape above, unknown keys included in the rejection; `v` is a version
 the verifier implements; and `sig` verifies against `from` over the
 re-encoded body. A verifier that enforces an audience MUST reject a
-directed envelope whose `aud` is not its own key; any payload whose safe
+directed envelope whose `aud` does not include its own key; any payload whose safe
 handling assumes directed delivery must bind an audience, or the bytes
 are replayable to parties the sender never addressed. Freshness is law
 with a sovereign dial: each verifier MUST enforce a freshness policy on
