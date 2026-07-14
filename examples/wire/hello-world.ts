@@ -10,8 +10,8 @@
  * Run: npx tsx examples/hello-world.ts
  */
 
-import { generateKeypair } from "../src/identity.js";
-import { sealEnvelope, verifyEnvelope, FreshnessWindow, type Envelope } from "../src/envelope.js";
+import { generateKeypair } from "../../src/identity.js";
+import { sealEnvelope, verifyEnvelope, FreshnessWindow, type Envelope } from "../../src/envelope.js";
 
 const text = new TextEncoder();
 const untext = new TextDecoder();

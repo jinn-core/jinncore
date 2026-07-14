@@ -12,10 +12,10 @@
  * Run: npx tsx examples/signed-only.ts
  */
 
-import { generateKeypair } from "../src/identity.js";
-import { sealEnvelope, verifyEnvelope, FreshnessWindow, type Envelope } from "../src/envelope.js";
-import { issueCapability, verifyAttestation } from "../src/attestation.js";
-import { equalBytes, toHex } from "../src/bytes.js";
+import { generateKeypair } from "../../src/identity.js";
+import { sealEnvelope, verifyEnvelope, FreshnessWindow, type Envelope } from "../../src/envelope.js";
+import { issueCapability, verifyAttestation } from "../../src/attestation.js";
+import { equalBytes, toHex } from "../../src/bytes.js";
 
 const text = new TextEncoder();
 const NOW = 1_800_000_000;

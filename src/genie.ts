@@ -12,7 +12,7 @@
  * @example
  * const alice = await createGenie();
  * const bob = await createGenie();
- * const letter = await alice.seal({ to: bob.name, payload: "salaam" });
+ * const letter = await alice.seal({ to: bob.name, payload: "hello" });
  * const envelope = await bob.open(letter); // verified, or it throws
  */
 

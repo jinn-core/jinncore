@@ -11,8 +11,8 @@
  * Run: npx tsx examples/genesis.ts
  */
 
-import { generateKeypair } from "../src/identity.js";
-import { sealEnvelope, verifyEnvelope, FreshnessWindow } from "../src/envelope.js";
+import { generateKeypair } from "../../src/identity.js";
+import { sealEnvelope, verifyEnvelope, FreshnessWindow } from "../../src/envelope.js";
 import {
   acceptMembership,
   grantMembership,
@@ -21,10 +21,10 @@ import {
   verifyDelegationChain,
   type Capability,
   type MembershipOffer,
-} from "../src/attestation.js";
-import { decodeWire, encodeWire, type WireValue } from "../src/cbor.js";
-import { sha256 } from "../src/digest.js";
-import { equalBytes, toHex } from "../src/bytes.js";
+} from "../../src/attestation.js";
+import { decodeWire, encodeWire, type WireValue } from "../../src/cbor.js";
+import { sha256 } from "../../src/digest.js";
+import { equalBytes, toHex } from "../../src/bytes.js";
 
 const text = new TextEncoder();
 const NOW = 1_800_000_000;

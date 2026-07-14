@@ -20,10 +20,10 @@ beforeAll(async () => {
 
 describe("the quickstart", () => {
   it("two genies exchange a verified message in two calls", async () => {
-    const letter = await alice.seal({ to: bob.name, payload: "salaam" });
+    const letter = await alice.seal({ to: bob.name, payload: "hello" });
     const envelope = await bob.open(letter);
     expect(envelope.from).toEqual(alice.name);
-    expect(untext.decode(envelope.payload)).toBe("salaam");
+    expect(untext.decode(envelope.payload)).toBe("hello");
   });
 
   it("string payloads are UTF-8; byte payloads pass through", async () => {
