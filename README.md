@@ -26,10 +26,12 @@ message, or QR code; how it arrived is not this artifact's business.
 
 ## Status
 
-Version 0.0.x: canonical serialization, identity, and the envelope are
-normative and implemented (sign, verify, audience gate, replay window);
-the attestation grammar lands next, with the code. Nothing here is stable
-yet.
+Version 0.0.x: the three mandates are normative and implemented.
+Canonical serialization and the SHA-256 digest; identity; the envelope
+(sign, verify, audience gate, replay window, presented standing); and the
+attestation grammar (capability with delegation chains, testimony, the
+membership pair). Next: the worked examples from the paper's section 6
+and the language-neutral test vectors. Nothing here is stable yet.
 
 ## Vocabulary
 

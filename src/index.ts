@@ -23,3 +23,30 @@ export {
   NONCE_LENGTH_MAX,
 } from "./envelope.js";
 export type { Envelope, Fresh, SealOptions, VerifyOptions } from "./envelope.js";
+
+export { sha256 } from "./digest.js";
+export { compareBytes, equalBytes, toHex } from "./bytes.js";
+
+export {
+  issueCapability,
+  issueTestimony,
+  grantMembership,
+  acceptMembership,
+  parseAttestation,
+  verifyAttestation,
+  verifyDelegationChain,
+  AttestationError,
+} from "./attestation.js";
+export type {
+  Attestation,
+  AttestationKind,
+  Capability,
+  Testimony,
+  Membership,
+  MembershipOffer,
+  DelegatedGrant,
+  IssueCapabilityOptions,
+  IssueTestimonyOptions,
+  GrantMembershipOptions,
+  VerifyAttestationOptions,
+} from "./attestation.js";

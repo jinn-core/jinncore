@@ -101,7 +101,8 @@ describe("shape", () => {
   });
 
   it("rejects a wrong wire version", async () => {
-    await expect(verify(await tampered((e) => { e.v = 1; }))).rejects.toThrow("unsupported wire version");
+    await expect(verify(await tampered((e) => { e.v = 2; }))).rejects.toThrow("unsupported wire version");
+    await expect(verify(await tampered((e) => { e.v = 0; }))).rejects.toThrow("unsupported wire version");
   });
 
   it("rejects malformed keys and nonces", async () => {

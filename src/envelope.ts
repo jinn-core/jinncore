@@ -8,6 +8,13 @@
  */
 
 import { decode, encode, type WireValue } from "./cbor.js";
+import { equalBytes, toHex } from "./bytes.js";
+import { isBytes, isPlainMap, requireKeys } from "./shape.js";
+import {
+  AttestationError,
+  parseAttestation,
+  type Attestation,
+} from "./attestation.js";
 import {
   PUBLIC_KEY_LENGTH,
   SIGNATURE_LENGTH,
@@ -16,7 +23,7 @@ import {
   verifySignature,
 } from "./identity.js";
 
-export const WIRE_VERSION = 0;
+export const WIRE_VERSION = 1;
 export const NONCE_LENGTH_DEFAULT = 16;
 export const NONCE_LENGTH_MIN = 8;
 export const NONCE_LENGTH_MAX = 32;
@@ -33,6 +40,8 @@ export interface Envelope {
   v: number;
   from: Uint8Array;
   aud?: Uint8Array;
+  /** Attestations the sender chooses to present. */
+  presents?: Attestation[];
   fresh: Fresh;
   payload: Uint8Array;
   sig: Uint8Array;
@@ -45,6 +54,8 @@ export interface SealOptions {
   from?: Uint8Array;
   /** Audience commitment; absent means public by construction. */
   aud?: Uint8Array;
+  /** Attestations to present; omit rather than passing an empty array. */
+  presents?: Attestation[];
   /** Sender-claimed seconds; defaults to the sender's own clock. */
   t?: number;
   /** Per-envelope nonce; defaults to NONCE_LENGTH_DEFAULT random bytes. */
@@ -59,6 +70,9 @@ function envelopeBody(envelope: Omit<Envelope, "sig">): { [key: string]: WireVal
     payload: envelope.payload,
   };
   if (envelope.aud !== undefined) body.aud = envelope.aud;
+  if (envelope.presents !== undefined) {
+    body.presents = envelope.presents as unknown as WireValue;
+  }
   return body;
 }
 
@@ -77,37 +91,32 @@ export async function seal(options: SealOptions): Promise<Uint8Array> {
     throw new EnvelopeError(`nonce must be ${NONCE_LENGTH_MIN}..${NONCE_LENGTH_MAX} bytes`);
   }
 
-  const body = envelopeBody({ v: WIRE_VERSION, from, fresh: { t, n }, payload: options.payload, ...(options.aud !== undefined && { aud: options.aud }) });
+  if (options.presents !== undefined) {
+    if (!Array.isArray(options.presents) || options.presents.length === 0) {
+      throw new EnvelopeError("presents must be a non-empty array; omit it instead");
+    }
+    for (const att of options.presents) {
+      try {
+        parseAttestation(att as unknown as WireValue);
+      } catch (error) {
+        throw new EnvelopeError(`invalid attestation in presents: ${(error as Error).message}`);
+      }
+    }
+  }
+
+  const body = envelopeBody({
+    v: WIRE_VERSION,
+    from,
+    fresh: { t, n },
+    payload: options.payload,
+    ...(options.aud !== undefined && { aud: options.aud }),
+    ...(options.presents !== undefined && { presents: options.presents }),
+  });
   const sig = await sign(encode(body), options.secretKey);
   return encode({ ...body, sig });
 }
 
 // --- verification -----------------------------------------------------
-
-function isBytes(value: WireValue | undefined, length?: number): value is Uint8Array {
-  return value instanceof Uint8Array && (length === undefined || value.length === length);
-}
-
-function isPlainMap(value: WireValue | undefined): value is { [key: string]: WireValue } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    !(value instanceof Uint8Array)
-  );
-}
-
-function requireKeys(map: { [key: string]: WireValue }, required: string[], optional: string[]): void {
-  const keys = Object.keys(map);
-  for (const key of required) {
-    if (!keys.includes(key)) throw new EnvelopeError(`missing field: ${key}`);
-  }
-  for (const key of keys) {
-    if (!required.includes(key) && !optional.includes(key)) {
-      throw new EnvelopeError(`unknown field: ${key}`);
-    }
-  }
-}
 
 /** Parse and shape-check envelope bytes. No signature or policy checks. */
 function parseEnvelope(bytes: Uint8Array): Envelope {
@@ -118,7 +127,7 @@ function parseEnvelope(bytes: Uint8Array): Envelope {
     throw new EnvelopeError(`not canonical wire bytes: ${(error as Error).message}`);
   }
   if (!isPlainMap(value)) throw new EnvelopeError("envelope must be a map");
-  requireKeys(value, ["v", "from", "fresh", "payload", "sig"], ["aud"]);
+  requireKeys(value, ["v", "from", "fresh", "payload", "sig"], ["aud", "presents"], EnvelopeError);
 
   if (value.v !== WIRE_VERSION) throw new EnvelopeError(`unsupported wire version: ${String(value.v)}`);
   if (!isBytes(value.from, PUBLIC_KEY_LENGTH)) throw new EnvelopeError("from must be a 32-byte key");
@@ -130,7 +139,7 @@ function parseEnvelope(bytes: Uint8Array): Envelope {
 
   const fresh = value.fresh;
   if (!isPlainMap(fresh)) throw new EnvelopeError("fresh must be a map");
-  requireKeys(fresh, ["t", "n"], []);
+  requireKeys(fresh, ["t", "n"], [], EnvelopeError);
   if (typeof fresh.t !== "number" || !Number.isSafeInteger(fresh.t) || fresh.t < 0) {
     throw new EnvelopeError("fresh.t must be a non-negative integer");
   }
@@ -146,6 +155,19 @@ function parseEnvelope(bytes: Uint8Array): Envelope {
     sig: value.sig,
   };
   if ("aud" in value) envelope.aud = value.aud as Uint8Array;
+  if ("presents" in value) {
+    if (!Array.isArray(value.presents) || value.presents.length === 0) {
+      throw new EnvelopeError("presents must be a non-empty array");
+    }
+    try {
+      envelope.presents = value.presents.map(parseAttestation);
+    } catch (error) {
+      if (error instanceof AttestationError) {
+        throw new EnvelopeError(`invalid attestation in presents: ${error.message}`);
+      }
+      throw error;
+    }
+  }
   return envelope;
 }
 
@@ -193,6 +215,11 @@ export interface VerifyOptions {
  * Verify envelope bytes: canonical decoding, shape, signature, audience,
  * freshness. Returns the envelope on success, throws EnvelopeError on any
  * failure. Judge the sender, ignore the messenger.
+ *
+ * Presented attestations are shape-checked only; a valid envelope does not
+ * imply valid cargo. Which attestations to demand and whether to believe
+ * them is the gate's own policy: run verifyAttestation /
+ * verifyDelegationChain per that policy.
  */
 export async function verify(bytes: Uint8Array, options: VerifyOptions = {}): Promise<Envelope> {
   const envelope = parseEnvelope(bytes);
@@ -217,15 +244,3 @@ export async function verify(bytes: Uint8Array, options: VerifyOptions = {}): Pr
   return envelope;
 }
 
-function toHex(bytes: Uint8Array): string {
-  let out = "";
-  for (const b of bytes) out += b.toString(16).padStart(2, "0");
-  return out;
-}
-
-function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
-  return diff === 0;
-}

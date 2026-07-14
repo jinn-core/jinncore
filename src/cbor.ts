@@ -8,6 +8,8 @@
  * bytes covers one value.
  */
 
+import { compareBytes } from "./bytes.js";
+
 export type WireValue =
   | number
   | bigint
@@ -58,14 +60,6 @@ function pushInteger(out: number[], value: bigint): void {
     if (arg > MAX_U64) throw new WireEncodeError(`integer too small: ${value}`);
     pushHead(out, 1, arg);
   }
-}
-
-function compareBytes(a: Uint8Array, b: Uint8Array): number {
-  const n = Math.min(a.length, b.length);
-  for (let i = 0; i < n; i++) {
-    if (a[i]! !== b[i]!) return a[i]! - b[i]!;
-  }
-  return a.length - b.length;
 }
 
 function pushValue(out: number[], value: WireValue): void {

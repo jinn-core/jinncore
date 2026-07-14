@@ -1,6 +1,6 @@
 # The Jinn Wire Grammar
 
-**Version 0.0.2 (unstable).** This document fixes the bytes of the Jinn
+**Version 0.0.3 (unstable).** This document fixes the bytes of the Jinn
 protocol: how wire objects are serialized, what a signature covers, and what
 a verifier must reject. It is the artifact the paper defers to for
 canonicalization, "a wire-grammar obligation" (paper, section 4.3). The
@@ -14,7 +14,8 @@ describe intent and may change without notice until marked normative.
 
 This grammar fixes exactly four things.
 
-1. The canonical serialization every signature is computed over (section 3).
+1. The canonical serialization every signature is computed over, and the
+   digest function (section 3).
 2. The identity primitive: key algorithm and encoding (section 4).
 3. The envelope: fields, signing, and verification (section 5).
 4. The attestation species and the membership pair (section 6).
@@ -75,10 +76,22 @@ and the grammar closes it by admitting one.
 
 ### 3.4 Signing
 
-Wherever this grammar says a key signs an object, the bytes signed are the
-canonical encoding of that object, exactly as transmitted. There is no
-transformation, hashing convention, or domain separation beyond what the
-object's own fields carry; what travels is what was signed.
+Wherever this grammar says a key **signs** an object, the bytes signed are
+the canonical encoding of that object, exactly as transmitted: what
+travels is what was signed. Wherever it says a key **countersigns** an
+object, the bytes signed are the SHA-256 digest (section 3.5) of that
+canonical encoding. The two domains never overlap: authorship is always a
+signature over an object's own bytes, acceptance always over a digest, so
+neither act can be presented as the other. There is no transformation or
+domain separation beyond these two rules and what each object's own
+fields carry.
+
+### 3.5 Digest
+
+The grammar's digest function is **SHA-256** (FIPS 180-4). Wherever this
+document says hash or digest, it is SHA-256 over canonical bytes. One
+protocol, one digest: the membership countersignature uses it today, and
+sigil naming (`hash(S)`) will use the same function when it lands.
 
 ## 4. Identity — **normative**
 
@@ -96,9 +109,10 @@ exactly these entries and no others.
 
 | key | type | presence | meaning |
 |---|---|---|---|
-| `v` | integer | required | wire grammar version; this document is version `0` |
+| `v` | integer | required | wire grammar version; this document is version `1` |
 | `from` | 32-byte byte string | required | the sender's public key |
 | `aud` | 32-byte byte string | optional | audience commitment; absent means public by construction |
+| `presents` | non-empty array of attestations | optional | standing the sender chooses to present (section 6) |
 | `fresh` | map `{t, n}` | required | freshness marker |
 | `payload` | byte string | required | opaque payload; meaning is convention between genies, never protocol law |
 | `sig` | 64-byte byte string | required | Ed25519 signature |
@@ -130,18 +144,78 @@ possible with memory bounded by the tolerance window, since everything
 older is rejected on `t` alone and only markers inside the window need
 remembering.
 
-**Reserved.** The key `presents` (attestations the sender chooses to
-present) is reserved: version-0 envelopes MUST NOT include it until the
-attestation grammar (section 6) lands, which will bump the version.
+**Presenting.** Each entry of `presents` MUST parse as an attestation
+(section 6); the envelope signature covers them like every other field,
+so presented standing is tamper-evident in transit. An envelope's
+validity never implies its cargo's: verifying the presented attestations
+themselves (signatures, expiry, chains), and judging whether they
+suffice, is the receiving gate's own policy. An empty `presents` array is
+a shape error; a sender with nothing to present omits the key.
 
-## 6. Attestation — **provisional**
+## 6. Attestation — **normative**
 
-Three species (capability, testimony, membership), one verification path,
-expiry as law. The membership pair is the grammar's most delicate
-obligation: the jinn's signature over a statement and the member's
-countersignature over the hash of that exact statement, where "exact" means
-the canonical bytes of section 3. Shapes land here with the code that
-demonstrates them.
+An attestation is a signed, expiring statement of standing: `iss` puts a
+signature behind a statement about `sub`. Three species, one frame, one
+verification path.
+
+### 6.1 The common frame
+
+Every attestation is a map carrying `kind` (text: `"capability"`,
+`"testimony"`, or `"membership"`), `iss` (32-byte key), `sub` (32-byte
+key), `exp` (non-negative integer seconds), its species fields (below),
+and `sig` (64 bytes). The **statement** is the attestation's canonical
+encoding with `sig` (and `memberSig`, where defined) absent; `sig` is the
+issuer's signature over the statement. Unknown kinds and unknown fields
+are shape errors.
+
+Expiry is law: every attestation carries `exp`, judged against each
+verifier's own clock, and an expired attestation proves only what was.
+There is no revocation beyond non-renewal.
+
+A verifier MUST reject an attestation unless: the shape is exact, `exp`
+has not passed on its clock, `sig` verifies against `iss` over the
+statement, and, for membership, the countersignature check of section 6.4
+passes. Validity is all the grammar defines; whether a valid attestation
+*suffices* is the receiving gate's judgment, above the waist.
+
+### 6.2 Capability
+
+Species fields: `scope`, a non-empty array of non-empty text strings in
+strictly ascending bytewise UTF-8 order (unique by construction), and
+`hops`, a non-negative integer delegation budget. Scope entries are
+uninterpreted at the waist; their meaning is convention between granter
+and grantee.
+
+A **delegation chain** is a sequence of capabilities, root first. A
+verifier MUST reject a chain unless every link verifies alone (6.1) and
+every non-root link, against its parent: is issued by the parent's `sub`
+(`child.iss = parent.sub`), has `scope` a subset of the parent's, has
+`exp` no later than the parent's, and has `hops` strictly less than the
+parent's. Delegation only attenuates; a capability with `hops` 0 is not
+delegable. Subset is set membership over exact strings; the waist knows
+no hierarchy among scope entries.
+
+### 6.3 Testimony
+
+Species field: `body`, a byte string, opaque at the waist. Testimony is
+signed experience made portable at the cost of trusting its signer; the
+grammar defines no score and no aggregate.
+
+### 6.4 Membership
+
+Species fields: `role` (non-empty text), `epoch` (non-negative integer),
+and `memberSig` (64 bytes). `iss` is the jinn, `sub` the member.
+
+Membership alone is a matched pair. The jinn signs the statement (`sig`,
+per 6.1); the member countersigns it (`memberSig`): a signature by `sub`
+over the SHA-256 digest of the statement's canonical bytes (section 3.4).
+Verification is three checks: the jinn's signature over the statement,
+the member's signature over the statement's recomputed digest, and the
+recomputation itself, which welds the countersignature to the exact
+statement presented. One signature alone is one of the two cheap lies (a
+genie draping itself in a jinn's name; a jinn claiming a genie it never
+had) and proves nothing: a lone offer is not an attestation and MUST be
+rejected at shape.
 
 ## 7. Test Vectors
 
