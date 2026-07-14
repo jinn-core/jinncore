@@ -1,9 +1,10 @@
-# The Jinn Wire Grammar
+# jinncore
 
-The paper ([jinncore.org](https://jinncore.org)) is the theory: three mandates,
-two axioms, and a set of refusals. This repository is the first artifact the
-paper promises after itself: the wire grammar, the exact bytes that make the
-mandates checkable. It contains three things and refuses to contain more.
+The Jinn protocol core. The paper ([jinncore.org](https://jinncore.org)) is
+the theory: three mandates, two axioms, and a set of refusals. This package
+is the first artifact the paper promises after itself: **the wire grammar**,
+the exact bytes that make the mandates checkable, as spec and library in one
+repo. It contains three things and refuses to contain more.
 
 - **`SPEC.md`** — the wire grammar. Canonical serialization, the envelope,
   the three attestation species, the membership pair. Normative where the
