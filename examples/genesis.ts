@@ -20,6 +20,7 @@ import {
   verifyAttestation,
   verifyDelegationChain,
   type Capability,
+  type MembershipOffer,
 } from "../src/attestation.js";
 import { decodeWire, encodeWire, type WireValue } from "../src/cbor.js";
 import { sha256 } from "../src/digest.js";
@@ -76,17 +77,37 @@ wire(`the jinn answers to ${hex(jinn.publicKey)} and speaks only through it`);
 off("the key sleeps in the founder's pocket: an autocracy; every later regime change is a key handover");
 
 act(5, "The jinn signs its members in; each countersigns. Nobody is implicitly inside.");
+// On the founder's machine (which holds the jinn's key): sign the offer.
+const scribeOffer = await grantMembership({
+  secretKey: jinn.secretKey,
+  subject: scribe.publicKey,
+  role: "scribe",
+  epoch: 1,
+  exp: NOW + EPOCH,
+});
+// The offer travels to the scribe's lamp. Half a pair is not yet standing,
+// so it cannot ride in `presents`; it goes as ordinary opaque payload.
+const scribeWindow = new FreshnessWindow(300);
+const offerEnvelope = await sealEnvelope({
+  secretKey: founder.secretKey,
+  aud: scribe.publicKey,
+  payload: encodeWire(scribeOffer as unknown as WireValue),
+  timestamp: NOW,
+});
+// In the scribe's lamp (the only place its secret key exists): verify the
+// delivery, read the offer, countersign. acceptMembership itself refuses
+// offers not addressed to this key or not truly signed by the jinn.
+const delivered = await verifyEnvelope(offerEnvelope, {
+  recipient: scribe.publicKey,
+  window: scribeWindow,
+  now: NOW,
+});
 const scribePair = await acceptMembership(
-  await grantMembership({
-    secretKey: jinn.secretKey,
-    subject: scribe.publicKey,
-    role: "scribe",
-    epoch: 1,
-    exp: NOW + EPOCH,
-  }),
+  decodeWire(delivered.payload) as unknown as MembershipOffer,
   scribe.secretKey,
 );
 await verifyAttestation(scribePair, { now: NOW });
+off("the offer crossed machines as bytes; no secret key ever traveled");
 wire(`membership pair verifies: the jinn grants, ${hex(scribe.publicKey)} accepts, role "scribe", epoch 1`);
 const founderPair = await acceptMembership(
   await grantMembership({
@@ -157,14 +178,25 @@ const LATER = NOW + EPOCH + 1;
 await verifyAttestation(scribePair, { now: LATER }).catch((e: Error) =>
   wire(`epoch-1 membership now fails verification: "${e.message}"; nobody sent a revocation`),
 );
-const scribePair2 = await acceptMembership(
-  await grantMembership({
-    secretKey: jinn.secretKey,
-    subject: scribe.publicKey,
-    role: "scribe",
-    epoch: 2,
-    exp: NOW + 2 * EPOCH,
+// The renewal offer crosses machines the same way act 5 did.
+const renewalOffer = await grantMembership({
+  secretKey: jinn.secretKey,
+  subject: scribe.publicKey,
+  role: "scribe",
+  epoch: 2,
+  exp: NOW + 2 * EPOCH,
+});
+const renewalDelivered = await verifyEnvelope(
+  await sealEnvelope({
+    secretKey: founder.secretKey,
+    aud: scribe.publicKey,
+    payload: encodeWire(renewalOffer as unknown as WireValue),
+    timestamp: LATER,
   }),
+  { recipient: scribe.publicKey, window: scribeWindow, now: LATER },
+);
+const scribePair2 = await acceptMembership(
+  decodeWire(renewalDelivered.payload) as unknown as MembershipOffer,
   scribe.secretKey,
 );
 await verifyAttestation(scribePair2, { now: LATER });
