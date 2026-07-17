@@ -193,3 +193,21 @@ describe("shortHex", () => {
     expect(shortHex(alice.name)).toBe(alice.hex.slice(0, 8) + "…");
   });
 });
+
+describe("payload helpers on open()", () => {
+  it("text() and json() decode the payload; envelope fields stay wire-shaped", async () => {
+    const letter = await alice.seal({ to: bob, payload: JSON.stringify({ op: "read", n: 2 }) });
+    const envelope = await bob.open(letter);
+    expect(envelope.json<{ op: string; n: number }>()).toEqual({ op: "read", n: 2 });
+    expect(envelope.text()).toBe('{"op":"read","n":2}');
+    // Non-enumerable: the envelope's own keys are exactly the wire's.
+    expect(Object.keys(envelope)).not.toContain("text");
+    expect(Object.keys(envelope)).not.toContain("json");
+  });
+
+  it("json() throws on a non-JSON payload", async () => {
+    const envelope = await bob.open(await alice.seal({ to: bob, payload: "plain text" }));
+    expect(() => envelope.json()).toThrow();
+    expect(envelope.text()).toBe("plain text");
+  });
+});
