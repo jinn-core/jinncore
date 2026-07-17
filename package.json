@@ -6,7 +6,7 @@
   "homepage": "https://jinncore.org",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/HasanYousef/jinncore.git"
+    "url": "git+https://github.com/jinn-core/jinncore.git"
   },
   "files": [
     "dist",
