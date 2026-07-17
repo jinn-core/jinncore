@@ -18,7 +18,7 @@ const letter = await alice.seal({ to: bob, payload: "hello" });
 const envelope = await bob.open(letter);
 
 console.log("from:   ", alice.hex.slice(0, 8) + "…");
-console.log("payload:", new TextDecoder().decode(envelope.payload));
+console.log("payload:", envelope.text());
 
 // The same bytes a second time is a replay, and bob remembers:
 await bob.open(letter).catch((e: Error) => console.log("replay: ", e.message));

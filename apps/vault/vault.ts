@@ -15,10 +15,7 @@ import {
   type Capability,
   type Envelope,
   type Genie,
-  type KeyLike,
 } from "../../src/index.js";
-
-const untext = new TextDecoder();
 
 interface Request {
   op: "read" | "write";
@@ -45,7 +42,7 @@ class Vault {
     // Mechanical gate: signature, audience, replay, and validity of all
     // presented attestations. Anything invalid throws before we think.
     const envelope = await this.#genie.open(bytes, { requireAudience: true });
-    const request = JSON.parse(untext.decode(envelope.payload)) as Request;
+    const request = envelope.json<Request>();
 
     // Judgment gate: the vault's own policy, on top of verified facts.
     await this.#authorize(envelope, `notes/${request.op}`);
@@ -90,7 +87,7 @@ async function attempt(label: string, who: Genie, request: Request, presents?: C
       ...(presents && { presents }),
     });
     const reply = await who.open(await vault.handle(bytes), { from: vault.name });
-    console.log(`  ${label}: ${untext.decode(reply.payload)}`);
+    console.log(`  ${label}: ${reply.text()}`);
   } catch (error) {
     console.log(`  ${label}: refused — ${(error as Error).message}`);
   }

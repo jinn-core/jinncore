@@ -3,7 +3,6 @@ import { decodeWire, encodeWire, type WireValue } from "../src/cbor.js";
 import { generateKeypair, type Keypair } from "../src/identity.js";
 import {
   acceptMembership,
-  AttestationError,
   grantMembership,
   issueCapability,
   issueTestimony,

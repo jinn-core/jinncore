@@ -21,7 +21,7 @@ if (!response.ok) {
 // From here on, the channel stops mattering: the reply authenticates
 // itself, and { from } demands it was the courier we addressed.
 const reply = await me.open(new Uint8Array(await response.arrayBuffer()), { from: courierName });
-console.log("courier replied:", new TextDecoder().decode(reply.payload));
+console.log("courier replied:", reply.text());
 
 // Replay our own letter verbatim: the courier's window remembers.
 const replay = await fetch(`${BASE}/inbox`, { method: "POST", body: letter });

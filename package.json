@@ -20,6 +20,7 @@
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check": "tsc -p tsconfig.check.json",
     "vectors": "tsx scripts/generate-vectors.ts"
   },
   "dependencies": {

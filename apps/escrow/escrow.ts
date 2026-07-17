@@ -18,8 +18,6 @@ import {
   type Genie,
 } from "../../src/index.js";
 
-const untext = new TextDecoder();
-
 interface DepositTerms {
   deal: string;
   want: { from: string; scope: string[] }; // what I expect the other side to give
@@ -46,7 +44,7 @@ class Escrow {
   /** Returns sealed envelopes to deliver: an ack, plus the release when a deal completes. */
   async handle(bytes: Uint8Array): Promise<Uint8Array[]> {
     const envelope = await this.#genie.open(bytes, { requireAudience: true });
-    const terms = JSON.parse(untext.decode(envelope.payload)) as DepositTerms;
+    const terms = envelope.json<DepositTerms>();
     const gives = (envelope.presents ?? []).find(
       (a): a is Capability => a.kind === "capability",
     );
@@ -105,7 +103,7 @@ async function deposit(who: Genie, terms: DepositTerms, gives: Capability): Prom
   });
   const out = await escrow.handle(bytes);
   const ack = await who.open(out[0]!, { from: escrow.name });
-  console.log(`  ${shortHex(who.name)} deposits: ${untext.decode(ack.payload)}`);
+  console.log(`  ${shortHex(who.name)} deposits: ${ack.text()}`);
   return out.slice(1);
 }
 

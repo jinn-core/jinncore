@@ -81,7 +81,7 @@ describe("tampering", () => {
   it("rejects a signature moved onto different bytes", async () => {
     const a = decodeWire(await sealed()) as { [key: string]: WireValue };
     const b = decodeWire(await sealed({ payload: new Uint8Array([9]) })) as { [key: string]: WireValue };
-    b.sig = a.sig;
+    b.sig = a.sig!;
     await expect(verifyEnvelope(encodeWire(b))).rejects.toThrow("signature does not verify");
   });
 });

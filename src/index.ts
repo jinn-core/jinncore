@@ -11,4 +11,4 @@
 export * from "./wire.js";
 
 export { Genie, Jinn, createGenie, createJinn, DEFAULT_TTL } from "./genie.js";
-export type { CreateOptions, GenieSealOptions, GenieOpenOptions, KeyLike } from "./genie.js";
+export type { CreateOptions, GenieSealOptions, GenieOpenOptions, KeyLike, OpenedEnvelope } from "./genie.js";

@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { shortHex } from "../src/bytes.js";
 import { createGenie, createJinn, type Genie, type Jinn } from "../src/index.js";
 import { EnvelopeError } from "../src/envelope.js";
-import { AttestationError, type Membership } from "../src/attestation.js";
+import type { Membership } from "../src/attestation.js";
 import { JinncoreError } from "../src/errors.js";
 
 let alice: Genie;

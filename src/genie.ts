@@ -49,6 +49,7 @@ const keyOf = (k: KeyLike): Uint8Array =>
   k instanceof Uint8Array ? k : typeof k === "string" ? fromHex(k) : k.name;
 
 const utf8 = new TextEncoder();
+const untext = new TextDecoder();
 const toBytes = (p: string | Uint8Array): Uint8Array =>
   typeof p === "string" ? utf8.encode(p) : p;
 
@@ -89,6 +90,14 @@ export interface GenieOpenOptions {
   /** Override this genie's clock (mostly for tests). */
   now?: number;
 }
+
+/** An opened envelope, with payload conveniences attached. */
+export type OpenedEnvelope = Envelope & {
+  /** The payload as UTF-8 text. */
+  text(): string;
+  /** The payload parsed as JSON. */
+  json<T = unknown>(): T;
+};
 
 interface TtlOptions {
   /** Seconds of validity from now (default DEFAULT_TTL). */
@@ -150,8 +159,9 @@ export class Genie {
    *
    * @example
    * const envelope = await me.open(bytes, { from: courierName });
+   * const request = envelope.json<{ op: string }>();
    */
-  async open(bytes: Uint8Array, options: GenieOpenOptions = {}): Promise<Envelope> {
+  async open(bytes: Uint8Array, options: GenieOpenOptions = {}): Promise<OpenedEnvelope> {
     const envelope = await verifyEnvelope(bytes, {
       recipient: this.name,
       window: this.#window,
@@ -166,7 +176,12 @@ export class Genie {
         await verifyAttestation(att, options.now !== undefined ? { now: options.now } : {});
       }
     }
-    return envelope;
+    // Payload conveniences, non-enumerable so the envelope's own fields
+    // stay exactly the wire's.
+    return Object.defineProperties(envelope as OpenedEnvelope, {
+      text: { value: () => untext.decode(envelope.payload) },
+      json: { value: () => JSON.parse(untext.decode(envelope.payload)) },
+    });
   }
 
   /** Grant a capability: subject may ask this of me, in this scope. */
