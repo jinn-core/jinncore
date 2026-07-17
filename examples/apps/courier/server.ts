@@ -2,7 +2,7 @@
 
 import { createServer } from "node:http";
 import { readFile, writeFile } from "node:fs/promises";
-import { createGenie, fromHex, toHex, type Genie } from "../../src/index.js";
+import { createGenie, fromHex, toHex, type Genie } from "../../../src/index.js";
 
 const PORT = Number(process.env.PORT ?? 8642);
 const SOUL = new URL(".soul", import.meta.url);

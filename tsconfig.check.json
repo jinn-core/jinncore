@@ -7,5 +7,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src", "test", "examples", "apps", "scripts"]
+  "include": ["src", "test", "examples", "scripts"]
 }

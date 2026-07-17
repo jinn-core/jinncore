@@ -1,6 +1,6 @@
 /**
  * The escrow: atomic swap of two capabilities between mutually
- * distrusting parties. Run: npx tsx apps/escrow/escrow.ts
+ * distrusting parties. Run: npx tsx examples/apps/escrow/escrow.ts
  *
  * A deposit is an envelope to the escrow whose payload names the deal and
  * what the depositor wants in return, and whose `presents` carries the
@@ -16,7 +16,7 @@ import {
   toHex,
   type Capability,
   type Genie,
-} from "../../src/index.js";
+} from "../../../src/index.js";
 
 interface DepositTerms {
   deal: string;

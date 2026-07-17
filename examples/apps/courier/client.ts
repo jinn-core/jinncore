@@ -1,6 +1,6 @@
 /** A client genie: seals a letter, POSTs it, opens the reply. */
 
-import { createGenie } from "../../src/index.js";
+import { createGenie } from "../../../src/index.js";
 
 const BASE = process.env.COURIER ?? "http://127.0.0.1:8642";
 const message = process.argv[2] ?? "hello over HTTP";

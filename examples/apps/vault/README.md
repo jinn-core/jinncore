@@ -7,7 +7,7 @@ them inside envelopes, and the vault's gate judges everything locally,
 against its own keys and clock.
 
 ```
-npx tsx apps/vault/vault.ts
+npx tsx examples/apps/vault/vault.ts
 ```
 
 The vault itself is transport-free: its whole interface is

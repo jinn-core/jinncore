@@ -6,7 +6,7 @@ genie holds both sides' signed grants and releases them together, in one
 envelope addressed to both parties, or not at all.
 
 ```
-npx tsx apps/escrow/escrow.ts
+npx tsx examples/apps/escrow/escrow.ts
 ```
 
 ## What it exercises

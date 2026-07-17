@@ -1,5 +1,5 @@
 /**
- * The vault: a capability-gated note store. Run: npx tsx apps/vault/vault.ts
+ * The vault: a capability-gated note store. Run: npx tsx examples/apps/vault/vault.ts
  *
  * Requests are JSON payloads: { op: "read" | "write", key, value? }.
  * Authority is a capability (or delegation chain) in `presents`, issued
@@ -15,7 +15,7 @@ import {
   type Capability,
   type Envelope,
   type Genie,
-} from "../../src/index.js";
+} from "../../../src/index.js";
 
 interface Request {
   op: "read" | "write";

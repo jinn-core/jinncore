@@ -7,8 +7,8 @@ envelopes and POST the bytes; the courier opens, judges, and replies with
 a sealed envelope of its own.
 
 ```
-npx tsx apps/courier/server.ts            # terminal 1
-npx tsx apps/courier/client.ts "a message"  # terminal 2
+npx tsx examples/apps/courier/server.ts            # terminal 1
+npx tsx examples/apps/courier/client.ts "a message"  # terminal 2
 ```
 
 ## What it exercises
