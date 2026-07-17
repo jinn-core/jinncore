@@ -4,6 +4,10 @@
   "private": true,
   "license": "Apache-2.0",
   "homepage": "https://jinncore.org",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HasanYousef/jinncore.git"
+  },
   "files": [
     "dist",
     "SPEC.md",
