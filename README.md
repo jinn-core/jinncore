@@ -97,5 +97,5 @@ spec's change discipline.
 
 ## Vocabulary
 
-Sigil, genie, lamp, body, jinn: defined once, in the paper's section 2,
+Sigil, genie, lamp, jinn: defined once, in the paper's section 2,
 and used here without redefinition.

@@ -29,7 +29,7 @@ the bytes the test vectors say, and rejects exactly what they reject.
 
 The key words MUST, MUST NOT, SHOULD, and MAY are used as in RFC 2119.
 "The paper" means "Jinn: A Protocol for Societies of Sovereign Agents";
-sigil, genie, lamp, body, and jinn carry the paper's section 2 meanings.
+sigil, genie, lamp, and jinn carry the paper's section 2 meanings.
 Byte sequences in examples are lowercase hex.
 
 ## 3. Canonical Serialization — **normative**
