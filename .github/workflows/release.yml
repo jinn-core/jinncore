@@ -1,0 +1,37 @@
+name: Release
+
+# A release is: bump package.json, commit, tag vX.Y.Z, push the tag.
+# This workflow publishes to npm via trusted publishing (OIDC, no tokens)
+# with provenance, then creates the GitHub Release. A tag that fails the
+# checks publishes nothing.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # create the GitHub Release
+  id-token: write # npm trusted publishing / provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+      # Trusted publishing requires a newer npm than node 22 bundles.
+      - run: npm install -g npm@latest
+      - run: npm ci
+      - name: Tag must match package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VERSION=$(node -p "require('./package.json').version")
+          [ "$TAG" = "$VERSION" ] || { echo "tag v$TAG != package version $VERSION" >&2; exit 1; }
+      # prepublishOnly runs the strict check, all tests, and the build.
+      - run: npm publish
+      - run: gh release create "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

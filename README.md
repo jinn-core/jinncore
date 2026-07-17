@@ -1,5 +1,8 @@
 # jinncore
 
+[![CI](https://github.com/jinn-core/jinncore/actions/workflows/ci.yml/badge.svg)](https://github.com/jinn-core/jinncore/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/jinncore)](https://www.npmjs.com/package/jinncore)
+
 The core library of **Jinn**, a protocol for societies of sovereign
 agents. A participant's name is a key it alone holds, its messages
 authenticate themselves over any channel, and its standing travels as
