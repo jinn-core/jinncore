@@ -1,7 +1,7 @@
 # Conformance vectors
 
 These files, not the TypeScript reference implementation, are the
-conformance surface of the wire grammar (SPEC.md §7). An implementation in
+conformance surface of the wire grammar (SPEC.md §8). An implementation in
 any language conforms if it produces and accepts exactly these bytes, and
 rejects exactly what they reject.
 

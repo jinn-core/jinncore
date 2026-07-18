@@ -1,5 +1,5 @@
 /**
- * Generates the language-neutral conformance vectors (SPEC.md §7) into
+ * Generates the language-neutral conformance vectors (SPEC.md §8) into
  * test-vectors/. Fully deterministic: fixed seed keys, fixed timestamps,
  * fixed nonces; Ed25519 is deterministic, so every byte here is
  * reproducible by any conforming implementation.
@@ -19,6 +19,7 @@ import {
   type Capability,
   type Membership,
 } from "../src/attestation.js";
+import { encodeSigil, hashSigil } from "../src/sigil.js";
 import { toHex } from "../src/bytes.js";
 
 const OUT = new URL("../test-vectors/", import.meta.url);
@@ -287,6 +288,55 @@ const envelopeVectors = {
   ],
 };
 
+// --- sigils ------------------------------------------------------------------
+
+const openSigilOptions = { behavior: "You are a hello-world genie." };
+const openSigil = encodeSigil(openSigilOptions);
+const uttererSigilOptions = {
+  behavior: "You are a scribe. Serve whoever summons you.",
+  membrane: { gate: "utterer" } as const,
+};
+const uttererSigil = encodeSigil(uttererSigilOptions);
+// keys deliberately given out of order: encoding canonicalizes by sorting
+const allowSigilOptions = {
+  behavior: "Answer the council.",
+  membrane: { gate: "allow" as const, keys: [jinn, founder] },
+};
+const allowSigil = encodeSigil(allowSigilOptions);
+
+const sigilVectors = {
+  description:
+    "Sigil encoding and naming (SPEC.md §7, provisional). `bytes` is the canonical encoding of the sigil built from `options` (absent membrane defaults to open; allow keys are canonicalized by sorting). `name` is the SHA-256 digest of `bytes`: the sigil's true name. `reject`: a strict parser must refuse these canonical-CBOR values as sigils.",
+  encode: [
+    {
+      name: "open sigil, membrane defaulted",
+      options: openSigilOptions,
+      bytes: toHex(openSigil),
+      sigilName: toHex(await hashSigil(openSigil)),
+    },
+    {
+      name: "utterer-gated sigil",
+      options: uttererSigilOptions,
+      bytes: toHex(uttererSigil),
+      sigilName: toHex(await hashSigil(uttererSigil)),
+    },
+    {
+      name: "allow-gated sigil, keys canonicalized",
+      options: att(allowSigilOptions as unknown as object),
+      bytes: toHex(allowSigil),
+      sigilName: toHex(await hashSigil(allowSigil)),
+    },
+  ],
+  reject: [
+    { hex: toHex(encodeWire({ v: 2, behavior: "x", membrane: { gate: "open" } })), reason: "unsupported sigil version" },
+    { hex: toHex(encodeWire({ v: 1, behavior: "", membrane: { gate: "open" } })), reason: "empty behavior" },
+    { hex: toHex(encodeWire({ v: 1, behavior: "x", membrane: { gate: "royal" } })), reason: "unknown membrane gate" },
+    { hex: toHex(encodeWire({ v: 1, behavior: "x", membrane: { gate: "open" }, extra: 1 })), reason: "unknown field" },
+    { hex: toHex(encodeWire({ v: 1, behavior: "x", membrane: { gate: "allow", keys: [] } })), reason: "empty allow keys" },
+    { hex: toHex(encodeWire({ v: 1, behavior: "x", membrane: { gate: "allow", keys: [founder, founder] } })), reason: "keys not strictly ascending" },
+  ],
+};
+
 // --- write -------------------------------------------------------------------
 
 await mkdir(OUT, { recursive: true });
@@ -301,5 +351,6 @@ await write("cbor.json", {
 });
 await write("envelope.json", envelopeVectors);
 await write("attestation.json", attestationVectors);
+await write("sigil.json", sigilVectors);
 
 console.log(`vectors written to ${OUT.pathname}`);

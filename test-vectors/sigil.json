@@ -1,0 +1,69 @@
+{
+  "description": "Sigil encoding and naming (SPEC.md §7, provisional). `bytes` is the canonical encoding of the sigil built from `options` (absent membrane defaults to open; allow keys are canonicalized by sorting). `name` is the SHA-256 digest of `bytes`: the sigil's true name. `reject`: a strict parser must refuse these canonical-CBOR values as sigils.",
+  "encode": [
+    {
+      "name": "open sigil, membrane defaulted",
+      "options": {
+        "behavior": "You are a hello-world genie."
+      },
+      "bytes": "a3617601686265686176696f72781c596f752061726520612068656c6c6f2d776f726c642067656e69652e686d656d6272616e65a16467617465646f70656e",
+      "sigilName": "fdb1105e4068c59fd46a49c61becf9fd1209618877f8f30efc61d97b5bc67bd4"
+    },
+    {
+      "name": "utterer-gated sigil",
+      "options": {
+        "behavior": "You are a scribe. Serve whoever summons you.",
+        "membrane": {
+          "gate": "utterer"
+        }
+      },
+      "bytes": "a3617601686265686176696f72782c596f75206172652061207363726962652e2053657276652077686f657665722073756d6d6f6e7320796f752e686d656d6272616e65a164676174656775747465726572",
+      "sigilName": "b46479f25fb7312033bb5da77f1ba8ca5cea855f08539f7e4b162bb685f0bfd0"
+    },
+    {
+      "name": "allow-gated sigil, keys canonicalized",
+      "options": {
+        "behavior": "Answer the council.",
+        "membrane": {
+          "gate": "allow",
+          "keys": [
+            {
+              "$hex": "018139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
+            },
+            {
+              "$hex": "018a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c"
+            }
+          ]
+        }
+      },
+      "bytes": "a3617601686265686176696f7273416e737765722074686520636f756e63696c2e686d656d6272616e65a2646761746565616c6c6f77646b657973825821018139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3945821018a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c",
+      "sigilName": "2ca41f9ffb8efaa39e9a2766c2323d2315d80dd1d2478393d43acb2485e0ec22"
+    }
+  ],
+  "reject": [
+    {
+      "hex": "a3617602686265686176696f726178686d656d6272616e65a16467617465646f70656e",
+      "reason": "unsupported sigil version"
+    },
+    {
+      "hex": "a3617601686265686176696f7260686d656d6272616e65a16467617465646f70656e",
+      "reason": "empty behavior"
+    },
+    {
+      "hex": "a3617601686265686176696f726178686d656d6272616e65a1646761746565726f79616c",
+      "reason": "unknown membrane gate"
+    },
+    {
+      "hex": "a461760165657874726101686265686176696f726178686d656d6272616e65a16467617465646f70656e",
+      "reason": "unknown field"
+    },
+    {
+      "hex": "a3617601686265686176696f726178686d656d6272616e65a2646761746565616c6c6f77646b65797380",
+      "reason": "empty allow keys"
+    },
+    {
+      "hex": "a3617601686265686176696f726178686d656d6272616e65a2646761746565616c6c6f77646b657973825821018a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c5821018a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c",
+      "reason": "keys not strictly ascending"
+    }
+  ]
+}

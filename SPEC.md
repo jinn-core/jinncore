@@ -20,6 +20,7 @@ This grammar fixes exactly four things.
 3. The envelope: fields, signing, and verification (section 5).
 4. The attestation species and the membership pair (section 6).
 
+A fifth object, the sigil, is specified provisionally (section 7).
 It refuses to fix transport, discovery, payload meaning, key custody, lamp
 mechanics, and anything else the paper places off the waist. Conformance is
 byte-level: an implementation conforms if it produces and accepts exactly
@@ -233,14 +234,49 @@ genie draping itself in a jinn's name; a jinn claiming a genie it never
 had) and proves nothing: a lone offer is not an attestation and MUST be
 rejected at shape.
 
-## 7. Test Vectors
+## 7. Sigil — **provisional**
+
+A sigil is definition text: keyless, inert, shareable (paper, section 2),
+defining a behavior and its membrane policy. Dead things are named by
+content: a sigil's true name is the SHA-256 digest (section 3.5) of its
+canonical bytes. Its canonical encoding is a map with exactly these
+entries and no others:
+
+| key | type | presence | meaning |
+|---|---|---|---|
+| `v` | integer | required | sigil format version; this section is version `1` |
+| `behavior` | non-empty text | required | the behavior; opaque to the grammar |
+| `membrane` | map | required | the membrane policy, one of the three shapes below |
+
+`membrane` is exactly one of:
+
+- `{"gate": "open"}` — envelopes from any sender are admitted;
+- `{"gate": "utterer"}` — only envelopes from the key that uttered this
+  sigil. Resolving "utterer" to a concrete key happens at kindling, below
+  the waist, and is never a wire fact;
+- `{"gate": "allow", "keys": [...]}` — only envelopes from the listed
+  suite-tagged keys (section 4): a non-empty array, strictly ascending,
+  unique.
+
+Everything a summoner chooses at kindling (the brain, the budget, the
+payer, an alias) is outside the sigil and outside its name: two utterances
+of one sigil with different brains are two genies of one design. A genie's
+claimed sigil hash remains self-description (paper, section 3); design
+lineage is never a wire fact.
+
+Strictness matches the rest of the grammar: a parser MUST reject unknown
+fields, unknown gates, an empty behavior, and malformed or misordered
+keys. **Provisional:** the field set and membrane shapes may change
+without notice until this section is marked normative.
+
+## 8. Test Vectors
 
 `test-vectors/` holds language-neutral JSON vectors. Each vector gives
 inputs, expected canonical bytes, and for verification cases an expected
 verdict, including forgeries that MUST be rejected. The vectors, not the
 reference implementation, are the conformance surface.
 
-## 8. Change Discipline
+## 9. Change Discipline
 
 Until 0.1.0, anything provisional may change. From 0.1.0, normative
 sections change only with a version bump and updated vectors. No section

@@ -15,6 +15,7 @@ import {
   type Attestation,
   type Capability,
 } from "../src/attestation.js";
+import { encodeSigil, hashSigil, parseSigil, type SigilMembrane } from "../src/sigil.js";
 
 const load = (name: string) =>
   JSON.parse(readFileSync(new URL(`../test-vectors/${name}`, import.meta.url), "utf8"));
@@ -75,6 +76,26 @@ describe("envelope vectors", () => {
       });
       if (verdict === "ok") await expect(run, name).resolves.toBeDefined();
       else await expect(run, name).rejects.toThrow();
+    }
+  });
+});
+
+describe("sigil vectors", () => {
+  const vectors = load("sigil.json");
+  it("every encode vector reproduces its bytes and its name", async () => {
+    for (const { name, options, bytes, sigilName } of vectors.encode) {
+      const opts = fromJson(options) as unknown as {
+        behavior: string;
+        membrane?: SigilMembrane;
+      };
+      expect(toHex(encodeSigil(opts)), name).toBe(bytes);
+      expect(toHex(await hashSigil(fromHex(bytes))), name).toBe(sigilName);
+      expect(parseSigil(fromHex(bytes)).behavior, name).toBe(opts.behavior);
+    }
+  });
+  it("every reject vector is rejected", () => {
+    for (const { hex, reason } of vectors.reject) {
+      expect(() => parseSigil(fromHex(hex)), reason).toThrow();
     }
   });
 });

@@ -37,6 +37,9 @@ export {
 } from "./envelope.js";
 export type { Envelope, Fresh, SealOptions, VerifyOptions } from "./envelope.js";
 
+export { encodeSigil, parseSigil, hashSigil, SigilError, SIGIL_VERSION } from "./sigil.js";
+export type { Sigil, SigilMembrane, EncodeSigilOptions } from "./sigil.js";
+
 export { sha256 } from "./digest.js";
 export { compareBytes, equalBytes, toHex, fromHex, shortHex } from "./bytes.js";
 
