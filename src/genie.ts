@@ -22,6 +22,7 @@ import { generateKeypair, publicKeyOf } from "./identity.js";
 import {
   EnvelopeError,
   FreshnessWindow,
+  type FreshnessSnapshot,
   sealEnvelope,
   verifyEnvelope,
   type Envelope,
@@ -63,6 +64,8 @@ export interface CreateOptions {
   secretKey?: Uint8Array;
   /** Replay-window tolerance in seconds (default 300). */
   tolerance?: number;
+  /** Restore a saved replay window (from freshnessSnapshot()). */
+  freshness?: FreshnessSnapshot;
 }
 
 export interface GenieSealOptions {
@@ -115,15 +118,25 @@ export class Genie {
   readonly #secretKey: Uint8Array;
   readonly #window: FreshnessWindow;
 
-  protected constructor(secretKey: Uint8Array, name: Uint8Array, tolerance: number) {
+  protected constructor(
+    secretKey: Uint8Array,
+    name: Uint8Array,
+    tolerance: number,
+    freshness?: FreshnessSnapshot,
+  ) {
     this.#secretKey = secretKey;
     this.name = name;
-    this.#window = new FreshnessWindow(tolerance);
+    this.#window = new FreshnessWindow(tolerance, freshness);
   }
 
   static async create(options: CreateOptions = {}): Promise<Genie> {
     const { secretKey, name } = await resolveIdentity(options);
-    return new Genie(secretKey, name, options.tolerance ?? 300);
+    return new Genie(secretKey, name, options.tolerance ?? 300, options.freshness);
+  }
+
+  /** The replay window's seen markers, for persistence across restarts. */
+  freshnessSnapshot(): FreshnessSnapshot {
+    return this.#window.snapshot();
   }
 
   /** The name as lowercase hex, for logs and comparisons by eye. */
@@ -278,7 +291,7 @@ export class Genie {
 export class Jinn extends Genie {
   static override async create(options: CreateOptions = {}): Promise<Jinn> {
     const { secretKey, name } = await resolveIdentity(options);
-    return new Jinn(secretKey, name, options.tolerance ?? 300);
+    return new Jinn(secretKey, name, options.tolerance ?? 300, options.freshness);
   }
 
   /**

@@ -223,10 +223,20 @@ function parseEnvelope(bytes: Uint8Array): Envelope {
  * const window = new FreshnessWindow(300); // accept up to 5 minutes of skew
  * await verifyEnvelope(bytes, { window }); // second call with same bytes throws
  */
+/** A saved freshness window: [marker, claimed time] pairs. */
+export type FreshnessSnapshot = Array<[string, number]>;
+
 export class FreshnessWindow {
   private seen = new Map<string, number>();
 
-  constructor(readonly tolerance: number = 300) {}
+  constructor(readonly tolerance: number = 300, restore?: FreshnessSnapshot) {
+    if (restore) this.seen = new Map(restore);
+  }
+
+  /** The seen markers, for persistence. Restore via the constructor. */
+  snapshot(): FreshnessSnapshot {
+    return [...this.seen.entries()];
+  }
 
   /** Throws if the marker is outside tolerance or already seen. */
   check(from: Uint8Array, fresh: Fresh, now: number): void {

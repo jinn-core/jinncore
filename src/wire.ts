@@ -35,7 +35,7 @@ export {
   NONCE_LENGTH_MIN,
   NONCE_LENGTH_MAX,
 } from "./envelope.js";
-export type { Envelope, Fresh, SealOptions, VerifyOptions } from "./envelope.js";
+export type { Envelope, Fresh, FreshnessSnapshot, SealOptions, VerifyOptions } from "./envelope.js";
 
 export { encodeSigil, parseSigil, hashSigil, SigilError, SIGIL_VERSION } from "./sigil.js";
 export type { Sigil, SigilMembrane, EncodeSigilOptions } from "./sigil.js";
