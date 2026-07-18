@@ -1,6 +1,20 @@
 /** Shape checks shared by every wire-object parser. */
 
 import type { WireValue } from "./cbor.js";
+import { isTaggedKey, signatureLengthOf } from "./identity.js";
+
+/** A suite-tagged public key of an implemented suite (SPEC.md §4). */
+export function isKey(value: WireValue | undefined): value is Uint8Array {
+  return isTaggedKey(value);
+}
+
+/** A signature whose length matches the suite of the (already validated) key. */
+export function isSignatureFor(
+  value: WireValue | undefined,
+  key: Uint8Array,
+): value is Uint8Array {
+  return value instanceof Uint8Array && value.length === signatureLengthOf(key[0]!);
+}
 
 export function isPlainMap(value: WireValue | undefined): value is { [key: string]: WireValue } {
   return (

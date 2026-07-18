@@ -28,8 +28,9 @@ lowercase hex strings.
 
 ## Fixed actors
 
-Secret keys are fixed 32-byte constants (0x01…, 0x02…, …); the
-corresponding public keys are included in each file. Ed25519 is
+Secret keys are fixed suite-tagged constants: the Ed25519 tag byte `01`
+followed by 32 constant bytes (0x01…, 0x02…, …). The corresponding
+suite-tagged public keys are included in each file. Ed25519 is
 deterministic, so every signature and every byte in these files is exactly
 reproducible.
 

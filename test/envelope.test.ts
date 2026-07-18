@@ -106,7 +106,9 @@ describe("shape", () => {
   });
 
   it("rejects malformed keys and nonces", async () => {
-    await expect(verifyEnvelope(await tampered((e) => { e.from = new Uint8Array(31); }))).rejects.toThrow("32-byte key");
+    await expect(verifyEnvelope(await tampered((e) => { e.from = new Uint8Array(31); }))).rejects.toThrow("suite-tagged key");
+    // An unknown suite tag is refused at shape, never negotiated over.
+    await expect(verifyEnvelope(await tampered((e) => { e.from = new Uint8Array(33).fill(9); }))).rejects.toThrow("suite-tagged key");
     await expect(verifyEnvelope(await tampered((e) => { (e.fresh as { n: WireValue }).n = new Uint8Array(4); }))).rejects.toThrow("fresh.n");
     await expect(verifyEnvelope(await tampered((e) => { (e.fresh as { t: WireValue }).t = -5; }))).rejects.toThrow("fresh.t");
   });

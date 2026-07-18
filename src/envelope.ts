@@ -10,19 +10,13 @@
 import { decodeWire, encodeWire, type WireValue } from "./cbor.js";
 import { compareBytes, equalBytes, toHex } from "./bytes.js";
 import { JinncoreError } from "./errors.js";
-import { isBytes, isPlainMap, requireKeys } from "./shape.js";
+import { isBytes, isKey, isPlainMap, isSignatureFor, requireKeys } from "./shape.js";
 import {
   AttestationError,
   parseAttestation,
   type Attestation,
 } from "./attestation.js";
-import {
-  PUBLIC_KEY_LENGTH,
-  SIGNATURE_LENGTH,
-  publicKeyOf,
-  sign,
-  verifySignature,
-} from "./identity.js";
+import { publicKeyOf, sign, verifySignature } from "./identity.js";
 
 export const WIRE_VERSION = 1;
 export const NONCE_LENGTH_DEFAULT = 16;
@@ -86,8 +80,8 @@ function canonicalAudience(aud: Uint8Array | Uint8Array[]): Uint8Array[] {
     throw new EnvelopeError("aud must not be empty; omit it for a public envelope");
   }
   for (const key of list) {
-    if (!(key instanceof Uint8Array) || key.length !== PUBLIC_KEY_LENGTH) {
-      throw new EnvelopeError("aud entries must be 32-byte keys");
+    if (!isKey(key)) {
+      throw new EnvelopeError("aud entries must be suite-tagged keys");
     }
   }
   list.sort(compareBytes);
@@ -116,7 +110,7 @@ export async function sealEnvelope(options: SealOptions): Promise<Uint8Array> {
   const t = options.timestamp ?? Math.floor(Date.now() / 1000);
   const n = options.nonce ?? globalThis.crypto.getRandomValues(new Uint8Array(NONCE_LENGTH_DEFAULT));
 
-  if (from.length !== PUBLIC_KEY_LENGTH) throw new EnvelopeError("from must be a 32-byte key");
+  if (!isKey(from)) throw new EnvelopeError("from must be a suite-tagged key");
   const aud = options.aud !== undefined ? canonicalAudience(options.aud) : undefined;
   if (!Number.isSafeInteger(t) || t < 0) {
     throw new EnvelopeError("timestamp must be a non-negative integer");
@@ -164,9 +158,11 @@ function parseEnvelope(bytes: Uint8Array): Envelope {
   requireKeys(value, ["v", "from", "fresh", "payload", "sig"], ["aud", "presents"], EnvelopeError);
 
   if (value.v !== WIRE_VERSION) throw new EnvelopeError(`unsupported wire version: ${String(value.v)}`);
-  if (!isBytes(value.from, PUBLIC_KEY_LENGTH)) throw new EnvelopeError("from must be a 32-byte key");
+  if (!isKey(value.from)) throw new EnvelopeError("from must be a suite-tagged key");
   if (!isBytes(value.payload)) throw new EnvelopeError("payload must be a byte string");
-  if (!isBytes(value.sig, SIGNATURE_LENGTH)) throw new EnvelopeError("sig must be a 64-byte signature");
+  if (!isSignatureFor(value.sig, value.from)) {
+    throw new EnvelopeError("sig must be a signature in the sender's suite");
+  }
 
   const fresh = value.fresh;
   if (!isPlainMap(fresh)) throw new EnvelopeError("fresh must be a map");
@@ -192,8 +188,8 @@ function parseEnvelope(bytes: Uint8Array): Envelope {
     }
     const list: Uint8Array[] = [];
     for (const key of aud) {
-      if (!isBytes(key, PUBLIC_KEY_LENGTH)) {
-        throw new EnvelopeError("aud entries must be 32-byte keys");
+      if (!isKey(key)) {
+        throw new EnvelopeError("aud entries must be suite-tagged keys");
       }
       if (list.length > 0 && compareBytes(list[list.length - 1]!, key) >= 0) {
         throw new EnvelopeError("aud keys must be strictly ascending and unique");

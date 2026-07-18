@@ -16,14 +16,8 @@ import { encodeWire, type WireValue } from "./cbor.js";
 import { compareBytes, equalBytes } from "./bytes.js";
 import { sha256 } from "./digest.js";
 import { JinncoreError } from "./errors.js";
-import { isBytes, isPlainMap, isUint, requireKeys } from "./shape.js";
-import {
-  PUBLIC_KEY_LENGTH,
-  SIGNATURE_LENGTH,
-  publicKeyOf,
-  sign,
-  verifySignature,
-} from "./identity.js";
+import { isBytes, isKey, isPlainMap, isSignatureFor, isUint, requireKeys } from "./shape.js";
+import { publicKeyOf, sign, verifySignature } from "./identity.js";
 
 export class AttestationError extends JinncoreError {}
 
@@ -110,8 +104,8 @@ function compareText(a: string, b: string): number {
 }
 
 function assertKey(value: unknown, name: string): asserts value is Uint8Array {
-  if (!(value instanceof Uint8Array) || value.length !== PUBLIC_KEY_LENGTH) {
-    throw new AttestationError(`${name} must be a 32-byte key`);
+  if (!isKey(value as WireValue)) {
+    throw new AttestationError(`${name} must be a suite-tagged key`);
   }
 }
 
@@ -296,10 +290,12 @@ export function parseAttestation(value: WireValue): Attestation {
   if (kind !== "capability" && kind !== "testimony" && kind !== "membership") {
     throw new AttestationError(`unknown attestation kind: ${String(kind)}`);
   }
-  if (!isBytes(value.issuer, PUBLIC_KEY_LENGTH)) throw new AttestationError("issuer must be a 32-byte key");
-  if (!isBytes(value.subject, PUBLIC_KEY_LENGTH)) throw new AttestationError("subject must be a 32-byte key");
+  if (!isKey(value.issuer)) throw new AttestationError("issuer must be a suite-tagged key");
+  if (!isKey(value.subject)) throw new AttestationError("subject must be a suite-tagged key");
   if (!isUint(value.exp)) throw new AttestationError("exp must be a non-negative integer");
-  if (!isBytes(value.sig, SIGNATURE_LENGTH)) throw new AttestationError("sig must be a 64-byte signature");
+  if (!isSignatureFor(value.sig, value.issuer)) {
+    throw new AttestationError("sig must be a signature in the issuer's suite");
+  }
 
   const common = { issuer: value.issuer, subject: value.subject, exp: value.exp, sig: value.sig };
 
@@ -319,8 +315,8 @@ export function parseAttestation(value: WireValue): Attestation {
       requireKeys(value, [...COMMON_KEYS, "role", "epoch", "memberSig"], [], AttestationError);
       assertRole(value.role);
       assertUint(value.epoch, "epoch");
-      if (!isBytes(value.memberSig, SIGNATURE_LENGTH)) {
-        throw new AttestationError("memberSig must be a 64-byte signature");
+      if (!isSignatureFor(value.memberSig, value.subject)) {
+        throw new AttestationError("memberSig must be a signature in the subject's suite");
       }
       return {
         kind,
@@ -360,7 +356,7 @@ export async function verifyAttestation(
     throw new AttestationError("issuer signature does not verify");
   }
   if (att.kind === "membership") {
-    if (!isBytes((att as Membership).memberSig, SIGNATURE_LENGTH)) {
+    if (!isSignatureFor((att as Membership).memberSig, att.subject)) {
       throw new AttestationError("membership without countersignature proves nothing");
     }
     if (!(await verifySignature(att.memberSig, await sha256(stmt), att.subject))) {

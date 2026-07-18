@@ -338,8 +338,8 @@ describe("parseAttestation strictness", () => {
     expect(() =>
       parseAttestation({
         kind: "testimony",
-        issuer: new Uint8Array(32),
-        subject: new Uint8Array(32),
+        issuer: new Uint8Array(33).fill(1),
+        subject: new Uint8Array(33).fill(1),
         exp: 1,
         body: new Uint8Array(),
         sig: new Uint8Array(64),

@@ -29,7 +29,12 @@ const utf8 = new TextEncoder();
 
 // --- fixed actors ---------------------------------------------------------
 
-const seed = (b: number) => new Uint8Array(32).fill(b);
+// Suite-tagged secret keys (SPEC.md §4): tag byte 0x01, then 32 seed bytes.
+const seed = (b: number) => {
+  const s = new Uint8Array(33).fill(b);
+  s[0] = 0x01;
+  return s;
+};
 const founderSecret = seed(1);
 const jinnSecret = seed(2);
 const scribeSecret = seed(3);

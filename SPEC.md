@@ -1,6 +1,6 @@
 # The Jinn Wire Grammar
 
-**Version 0.0.5 (unstable).** This document fixes the bytes of the Jinn
+**Version 0.0.6 (unstable).** This document fixes the bytes of the Jinn
 protocol: how wire objects are serialized, what a signature covers, and what
 a verifier must reject. It is the artifact the paper defers to for
 canonicalization, "a wire-grammar obligation" (paper, section 4.3). The
@@ -95,12 +95,27 @@ sigil naming (`hash(S)`) will use the same function when it lands.
 
 ## 4. Identity — **normative**
 
-A genie's name is an **Ed25519 public key** (RFC 8032), minted by the
-genie itself and carried as its 32-byte encoding in a CBOR byte string.
-Signatures are 64-byte Ed25519 signatures, likewise carried as byte
-strings. Nothing else about a genie is a wire fact: where the secret half
-sleeps is custody, below the waist. Hash self-description (`hash(S)` for
-sigils) and any succession convention remain **provisional** and deferred.
+A genie's name is a **suite-tagged public key**: a CBOR byte string whose
+first byte names a signature suite from the registry below and whose
+remaining bytes are that suite's public-key encoding. The genie mints it
+for itself. A signature carries no tag of its own: its suite is the suite
+of the key it verifies against.
+
+| tag | suite | tagged key | signature | status |
+|---|---|---|---|---|
+| `01` | Ed25519 (RFC 8032) | 33 bytes | 64 bytes | mandatory baseline |
+
+Tag `01` is the single mandatory baseline: every implementation MUST
+support it. Further suites may be registered in this table before 0.1.0
+and are OPTIONAL wherever registered. A verifier MUST reject, at shape,
+any key whose tag it does not implement: refusal, never negotiation. An
+identity is bound to its suite by its own first byte; the same key
+material under a different tag is a different name, so there is nothing
+to downgrade.
+
+Nothing else about a genie is a wire fact: where the secret half sleeps
+is custody, below the waist. Hash self-description (`hash(S)` for sigils)
+and any succession convention remain **provisional** and deferred.
 
 ## 5. Envelope — **normative**
 
@@ -110,12 +125,12 @@ exactly these entries and no others.
 | key | type | presence | meaning |
 |---|---|---|---|
 | `v` | integer | required | wire grammar version; this document is version `1` |
-| `from` | 32-byte byte string | required | the sender's public key |
-| `aud` | non-empty array of 32-byte byte strings | optional | the keys this envelope is addressed to, strictly ascending, unique; absent means public by construction |
+| `from` | suite-tagged key (section 4) | required | the sender's public key |
+| `aud` | non-empty array of suite-tagged keys | optional | the keys this envelope is addressed to, strictly ascending, unique; absent means public by construction |
 | `presents` | non-empty array of attestations | optional | standing the sender chooses to present (section 6) |
 | `fresh` | map `{t, n}` | required | freshness marker |
 | `payload` | byte string | required | opaque payload; meaning is convention between genies, never protocol law |
-| `sig` | 64-byte byte string | required | Ed25519 signature |
+| `sig` | byte string | required | signature by `from`, in `from`'s suite (section 4) |
 
 The freshness marker `fresh` is a map with exactly two entries: `t`, the
 sender's claimed time as a non-negative integer count of seconds, and
@@ -123,7 +138,7 @@ sender's claimed time as a non-negative integer count of seconds, and
 `t` is a claim judged against each verifier's own clock; there is no
 protocol clock.
 
-**Sealing.** `sig` is the Ed25519 signature over the canonical encoding
+**Sealing.** `sig` is the signature, in `from`'s suite, over the canonical encoding
 (section 3) of the envelope map with the `sig` entry absent. The envelope
 then travels as the canonical encoding of the full map. The signature
 covers every field, so audience, freshness, and presented standing are
@@ -161,9 +176,9 @@ verification path.
 ### 6.1 The common frame
 
 Every attestation is a map carrying `kind` (text: `"capability"`,
-`"testimony"`, or `"membership"`), `issuer` (32-byte key), `subject` (32-byte
-key), `exp` (non-negative integer seconds), its species fields (below),
-and `sig` (64 bytes). The **statement** is the attestation's canonical
+`"testimony"`, or `"membership"`), `issuer` (suite-tagged key), `subject`
+(suite-tagged key), `exp` (non-negative integer seconds), its species
+fields (below), and `sig` (a signature in `issuer`'s suite). The **statement** is the attestation's canonical
 encoding with `sig` (and `memberSig`, where defined) absent; `sig` is the
 issuer's signature over the statement. Unknown kinds and unknown fields
 are shape errors.
@@ -204,7 +219,8 @@ grammar defines no score and no aggregate.
 ### 6.4 Membership
 
 Species fields: `role` (non-empty text), `epoch` (non-negative integer),
-and `memberSig` (64 bytes). `issuer` is the jinn, `subject` the member.
+and `memberSig` (a signature in `subject`'s suite). `issuer` is the jinn,
+`subject` the member.
 
 Membership alone is a matched pair. The jinn signs the statement (`sig`,
 per 6.1); the member countersigns it (`memberSig`): a signature by `subject`
